@@ -36,7 +36,7 @@ nspc_in = nini_in + nemis_in
 nspc_out = spcnames.size
 n_met = met_names.size
 
-# CREATE MODEL (OSTI)
+# CREATE MODEL (One STep Integrator)
 
 # DONT use one network for single and core of diurnal!
 model = Feedforward(nini_in+nemis_in+n_met,hidden_sizes,nspc_out)
