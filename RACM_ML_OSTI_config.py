@@ -21,7 +21,7 @@ from D_matrix import *
 A = A[:286,:95]
 D = D[:95,:286]
 
-# create E matrix (contains instructions to multiply certain concentrations)
+# create E matrix (contains instructions to multiply educt concentrations)
 # E[i] = list of spc ids that are educt in reaction i
 E=[]
 for i in range(A.shape[0]):
@@ -29,7 +29,7 @@ for i in range(A.shape[0]):
 
 
 ##################################################################
-# # # # # # # # # # # FEATURE NAMES # # # # # # # # # # #
+# # # # # # # # # # # # # FEATURE NAMES # # # # # # # # # # # # #
 ##################################################################
 
 # import ordered species names (ordered like A and D)
@@ -85,7 +85,7 @@ names["conc_plot"] = spcnames_plot
 
 
 ##################################################################
-# # # # # # # # # # # DATA SET SPECS # # # # # # # # # # #
+# # # # # # # # # # # # # DATA SET SPECS # # # # # # # # # # # # #
 ##################################################################
 
 
@@ -112,7 +112,7 @@ test_perc = 0.01
 
 
 ##################################################################
-# # # # # # # # # # # NN SPECS # # # # # # # # # # #
+# # # # # # # # # # # # # # NN SPECS # # # # # # # # # # # # # #
 ##################################################################
  
 #nlayers = 2                                                             # number and sizes of hidden layers
@@ -170,7 +170,7 @@ if Scaling=='MinMax':
 
 
 ##################################################################
-# # # # # # # # # # # SWITCHES # # # # # # # # # # #
+# # # # # # # # # # # # # # SWITCHES # # # # # # # # # # # # # #
 ##################################################################
 
 
