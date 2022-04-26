@@ -114,8 +114,8 @@ test_perc = 0.01
 ##################################################################
 # # # # # # # # # # # # # # NN SPECS # # # # # # # # # # # # # #
 ##################################################################
- 
-#nlayers = 2                                                             # number and sizes of hidden layers
+
+# specifiy sizes of hidden layers
 #hidden_sizes = [100 for i in range(nlayers)]
 hidden_sizes = [ 40,300,300 ]
 #hidden_sizes = [ 40,300 ]
@@ -130,7 +130,7 @@ hidden_sizes = [ 40,300,300 ]
 #percentage to identify outliers in loss tracking (gets applied twice, for lowest and highest)
 outlier_perc = 0.1
 
-# MinMax or log
+# Scaling: MinMax or log
 Scaling = 'MinMax'                                                      # data scaling (pre-processing)
 
 
@@ -180,5 +180,4 @@ train_diurnal = False
 
 # Plotting on and off switch
 Plotting = True
-
 

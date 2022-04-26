@@ -242,7 +242,7 @@ t_optim=0.0
 t_val=0.0
 if train_single:
 
-    print("  Training with ",str(ntrainsamples) , " samples.")
+    print("  Training with ",str(ntrainsamples*(nTimes-1)) , " data samples.")
     start_Timer = time.perf_counter()
     for epoch in range(1,nepoch+1):
         # set to training mode
