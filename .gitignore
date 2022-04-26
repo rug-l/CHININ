@@ -1,0 +1,15 @@
+StoredData/mkelp/**
+
+StoredData/archive/**
+
+ToBeIgnored/**
+
+Figures/**
+
+__pycache__/**
+
+*.swp
+
++
+
+.DS_Store
