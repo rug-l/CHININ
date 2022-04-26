@@ -96,14 +96,17 @@ t_final = 86399.0
 # log (and weird)
 t_0 = 0.0+60*60                                                                # time configuration, set beginning, end and number of relevant time steps
 t_final = 86399.0+60*60
-nTimes = 25
+
+NN_dt = 60*60 # in seconds!                                                 # timestep the NN predicts
+
+nTimes = int(round( (t_final-t_0) / NN_dt ,0)) + 1                                 # predictions per data set time span (which is [t_0, t_final] )
 
 timepoints = np.linspace(t_0,t_final,num=nTimes)                         # create time points array
 
 nepoch = 50                                                        # number of training epochs
 
 nsamples = 729                                                          # number of data samples to use (data has to exist!)
-val_perc = 0.1
+val_perc = 0.1                                                        
 test_perc = 0.01
 
 
