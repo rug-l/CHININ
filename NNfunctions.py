@@ -249,7 +249,7 @@ def datasetNetCDF(BSP, nsamples, ininames_in, emisnames_in, spcnames_out, met_na
     emisID_in = np.array([np.where(emis_recorded == i)[0][0] for i in emisnames_in])
 
     for isample, sample in enumerate(trainsamples,0):
-        print('    Loading sample ',isample,' of ',nsamples,'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
+        print('    Loading sample day ',isample,' of ',nsamples,'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
                 ' / est. ', convertTime(nsamples/(isample+1) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
         data, target, met = DataFromNetCDF(BSP, sample, ininames_in, spcnames_out, met_names, timepoints)
         data_tr[isample,:nini_in] = data
