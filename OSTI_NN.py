@@ -64,7 +64,6 @@ scheduler_diurnal = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_diurnal
 
 
 # GET DATA
-print(timepoints)
 conc, met, emis = load_packed_data(BSP, nsamples, spcnames, emisnames_in, met_names, timepoints, val_perc, test_perc)
 
 
@@ -436,7 +435,7 @@ if train_diurnal:
                 pred = model_diurnal(conc["val"][iSample,0,:], met["val"][iSample,:,:], emis["val"][iSample,:])
                 loss = criterion(pred.squeeze(), conc["val"][iSample,1:,:].flatten())
                 loss_imp=torch.tensor(0)
-                # THE FOLLOWING IS WRONG, pred.squeeze()[spcids_imp] has to consider all steps now
+                # THE FOLLOWING IS WRONG, pred.squeeze()[spcids_imp] has to consider all steps in diurnal training
                 #loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iSample,1:,spcids_imp])
                 vle_diurnal[iSample, :] = [ loss.item(), loss_imp.item() ]
                 
