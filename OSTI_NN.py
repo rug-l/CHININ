@@ -1,6 +1,8 @@
 from IMPORTS import *
 from NNfunctions import *
 
+print("\n  OSTI-Network is initializing. Good learning!\n")
+
 # #################################################### #
 #                                                      #
 #                        CONFIG                        #
@@ -12,58 +14,14 @@ from NNfunctions import *
 from RACM_ML_OSTI_config import *
 
 
-# #################################################### #
-#                                                      #
-#                         NN                           #
-#                                                      #
-# #################################################### #
-
-from NeuralNetworks import *
-
-from LossFunctions import *
 
 # #################################################### #
 #                                                      #
-#                      START                           #
+#                   DATA PREPARING                     #
 #                                                      #
 # #################################################### #
 
-print("\n  Start NN-Procedure.\n")
-
-nini_in = spcnames.size
-nemis_in = emisnames_in.size
-nspc_in = nini_in + nemis_in
-nspc_out = spcnames.size
-n_met = met_names.size
-
-# CREATE MODEL (One STep Integrator)
-
-# DONT use one network for single and core of diurnal!
-model = Feedforward(nini_in+nemis_in+n_met,hidden_sizes,nspc_out)
-#model = ResNet(nini_in, n_met, nemis_in, hidden_sizes, n_encoded)
-#model = CHININ(D, E, n_met, nemis_in, hidden_sizes)
-
-core = Feedforward(nini_in+nemis_in+n_met,hidden_sizes,nspc_out)
-#core = ResNet(nini_in, n_met, nemis_in, hidden_sizes, n_encoded)
-#core = CHININ(D, E, n_met, nemis_in, hidden_sizes)
-model_diurnal = diurnal_model(core)
-
-# LOSS FCN
-criterion = torch.nn.MSELoss()
-#criterion = MSE_focus_o3
-
-# OPTIMIZER
-#optimizer = torch.optim.SGD(model.parameters(), lr = learning_rate, momentum = momentum)
-optimizer = torch.optim.SGD(model.parameters(), lr = learning_rate_s)
-optimizer_diurnal = torch.optim.SGD(model_diurnal.parameters(), lr = learning_rate)
-
-# SCHEDULER
-#scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=learning_gamma)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=learning_gamma_s, patience=patience_s, threshold=threshold_s, verbose=1)
-scheduler_diurnal = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_diurnal, factor=learning_gamma, patience=patience, threshold=threshold, verbose=1)
-
-
-# GET DATA
+# GET RAW DATA
 conc, met, emis = load_packed_data(BSP, nsamples, spcnames, emisnames_in, met_names, timepoints, val_perc, test_perc)
 
 
@@ -74,6 +32,7 @@ elif Scaling=='log':
     F_normal = log_scaler
     norm_cutperc = 1E-16
 else:
+    print("")
     print("Please choose a valid scaler. Current: ", Scaling, "  Available: MinMax, log")
     print("")
     sys.exit()
@@ -133,6 +92,56 @@ for i in dat_minmax.keys():
 print("")
 
 
+
+
+# #################################################### #
+#                                                      #
+#                         NN                           #
+#                                                      #
+# #################################################### #
+
+from NeuralNetworks import *
+
+from LossFunctions import *
+
+
+print("\n  Start NN-Procedure.\n")
+
+nini_in = spcnames.size
+nemis_in = emisnames_in.size
+nspc_in = nini_in + nemis_in
+nspc_out = spcnames.size
+n_met = met_names.size
+
+# CREATE MODEL (One STep Integrator)
+
+# DONT use one network for single and core of diurnal!
+model = Feedforward(nini_in+nemis_in+n_met,hidden_sizes,nspc_out)
+#model = ResNet(nini_in, n_met, nemis_in, hidden_sizes, n_encoded)
+#model = CHININ(D, E, n_met, nemis_in, hidden_sizes)
+
+core = Feedforward(nini_in+nemis_in+n_met,hidden_sizes,nspc_out)
+#core = ResNet(nini_in, n_met, nemis_in, hidden_sizes, n_encoded)
+#core = CHININ(D, E, n_met, nemis_in, hidden_sizes)
+model_diurnal = diurnal_model(core)
+
+# LOSS FCN
+#criterion = torch.nn.MSELoss()
+#criterion = MSE_focus_o3
+criterion = partial(MSE_equalizer, dat_minmax=dat_minmax)
+
+# OPTIMIZER
+#optimizer = torch.optim.SGD(model.parameters(), lr = learning_rate, momentum = momentum)
+optimizer = torch.optim.SGD(model.parameters(), lr = learning_rate_s)
+optimizer_diurnal = torch.optim.SGD(model_diurnal.parameters(), lr = learning_rate)
+
+# SCHEDULER
+#scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=learning_gamma)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=learning_gamma_s, patience=patience_s, threshold=threshold_s, verbose=1)
+scheduler_diurnal = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_diurnal, factor=learning_gamma, patience=patience, threshold=threshold, verbose=1)
+
+
+# create loss-tracking and final predictions variables
 train_loss = np.zeros((nepoch+1))
 train_loss_diurnal = np.zeros((nepoch+1))
 val_loss = np.zeros((6,nepoch+1))
@@ -201,11 +210,15 @@ mean_loss_imp = np.mean(vle_diurnal[:,1].flatten())
 val_loss_diurnal[:,0] = [mean_loss, min_loss, max_loss, minn_loss, maxn_loss, mean_loss_imp]
 print("  Mean loss before diurnal training: ", mean_loss,"\n")
 mean_loss=mean_loss_single
+
+
+
 # #################################################### #
 #                                                      #
 #                      TRAINING                        #
 #                                                      #
 # #################################################### #
+
 
 timer_arb = 0.0
 time_IO = 0.0
@@ -241,7 +254,7 @@ t_optim=0.0
 t_val=0.0
 if train_single:
 
-    print("  Training with ",str(ntrainsamples*(nTimes-1)) , " data samples.")
+    print("  Training with "+str(ntrainsamples*(nTimes-1))+" data samples.")
     start_Timer = time.perf_counter()
     for epoch in range(1,nepoch+1):
         # set to training mode
