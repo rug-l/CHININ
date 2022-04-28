@@ -259,7 +259,7 @@ def datasetNetCDF(BSP, nsamples, ininames_in, emisnames_in, spcnames_out, met_na
         met_tr[isample,:,:] = met
     
     for isample, sample in enumerate(valsamples,0):
-        print('    Loading sample ',isample+ntrainsamples,' of ',nsamples,'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
+        print('    Loading sample day',isample+ntrainsamples,' of ',nsamples,'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
                 ' / est. ', convertTime(nsamples/(isample+ntrainsamples) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
         data, target, met = DataFromNetCDF(BSP, sample, ininames_in, spcnames_out, met_names, timepoints)
         data_val[isample,:nini_in] = data
@@ -269,7 +269,7 @@ def datasetNetCDF(BSP, nsamples, ininames_in, emisnames_in, spcnames_out, met_na
         met_val[isample,:,:] = met
     
     for isample, sample in enumerate(testsamples,0):
-        print('    Loading sample ',isample+ntrainsamples+nvalsamples,' of ',nsamples,'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
+        print('    Loading sample day ',isample+ntrainsamples+nvalsamples,' of ',nsamples,'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
                 ' / est. ', convertTime(nsamples/(isample+ntrainsamples+nvalsamples) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
         data, target, met = DataFromNetCDF(BSP, sample, ininames_in, spcnames_out, met_names, timepoints)
         data_te[isample,:nini_in] = data
