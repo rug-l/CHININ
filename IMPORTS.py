@@ -12,4 +12,4 @@ import torch.nn.functional as F
 import torch.nn as nn
 from scipy.integrate import solve_ivp
 import os.path
-
+from functools import partial
