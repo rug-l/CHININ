@@ -44,9 +44,9 @@ for (id, name) in enumerate(spcnames):
 
 spcnames = spcnames[:95]
 
-emisnames_in = np.array(["NO", "ISO", "API", "ETE", "HC5"])
+emisnames = np.array(["NO", "ISO", "API", "ETE", "HC5"])
 
-met_names = np.array(["time"])
+metnames = np.array(["time"])
 
 spcnames_imp = np.array([
     'O3',
@@ -76,16 +76,6 @@ for (i, name) in enumerate(spcnames_imp):
 
 spcnames_plot = spcnames_imp
 
-names = {}
-names["conc"] = spcnames
-names["met"] = met_names
-names["emis"] = emisnames_in
-names["conc_imp"] = spcnames_imp
-names["conc_plot"] = spcnames_plot
-
-#sys.exit()
-
-
 
 
 ##################################################################
@@ -96,11 +86,8 @@ names["conc_plot"] = spcnames_plot
 
 
 
-# MinMax (and better)
-t_0 = 0.0                                                                # time configuration, set beginning, end and number of relevant time steps
-t_final = 86399.0
-# log (and weird)
-t_0 = 0.0+60*60                                                                # time configuration, set beginning, end and number of relevant time steps
+# zero concentrations at t=0 are "unrealistic", we take pre-simulated data
+t_0 = 0.0+60*60                                                                # time configuration, time range of the data to read out of files
 t_final = 86399.0+60*60
 
 NN_dt = 60*60 # in seconds!                                                 # timestep the NN predicts
