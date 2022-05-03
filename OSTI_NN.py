@@ -22,7 +22,7 @@ from RACM_ML_OSTI_config import *
 # #################################################### #
 
 # GET RAW DATA
-conc, met, emis = get_data(BSP, nFiles, spcnames, met_names, emisnames_in, timepoints, val_perc, test_perc)
+conc, met, emis = get_data(BSP, nFiles, spcnames, metnames, emisnames, timepoints, val_perc, test_perc)
 
 
 if Scaling=='MinMax':
@@ -45,10 +45,10 @@ dat_minmax["emis"]={}
 for iSpc, spc in enumerate(spcnames):
     val_sorted = np.sort(np.concatenate((conc["train"][:,:,iSpc], conc["val"][:,:,iSpc], conc["test"][:,:,iSpc])).flatten())
     dat_minmax["conc"][spc] = [val_sorted[int(cut_perc*val_sorted.size)], val_sorted[int((1-cut_perc)*val_sorted.size)]]
-for iSpc, spc in enumerate(met_names):
+for iSpc, spc in enumerate(metnames):
     val_sorted = np.sort(np.concatenate((met["train"][:,:,iSpc], met["val"][:,:,iSpc], met["test"][:,:,iSpc])).flatten())
     dat_minmax["met"][spc] = [val_sorted[int(cut_perc*val_sorted.size)], val_sorted[int((1-cut_perc)*val_sorted.size)]]
-for iSpc, spc in enumerate(emisnames_in):
+for iSpc, spc in enumerate(emisnames):
     val_sorted = np.sort(np.concatenate((emis["train"][:,iSpc], emis["val"][:,iSpc], emis["test"][:,iSpc])).flatten())
     dat_minmax["emis"][spc] = [val_sorted[int(cut_perc*val_sorted.size)], val_sorted[int((1-cut_perc)*val_sorted.size)]]
 
@@ -62,14 +62,14 @@ for cat in conc.keys():
         #conc[cat][:,:,iSpc] = np.array([F_normal(val,dat_minmax["conc"][spc][0],dat_minmax["conc"][spc][1]) for val in conc[cat][:,:,iSpc]])
     conc[cat] = torch.from_numpy(conc[cat]).float()
 for cat in met.keys():
-    for iSpc, spc in enumerate(met_names):
+    for iSpc, spc in enumerate(metnames):
         for i in range(met[cat].shape[0]):
             for j in range(met[cat].shape[1]):
                 met[cat][i,j,iSpc] = F_normal(met[cat][i,j,iSpc],dat_minmax["met"][spc][0],dat_minmax["met"][spc][1])
         #met[cat][:,:,iSpc]  = np.array([F_normal(val,dat_minmax["met"][spc][0],dat_minmax["met"][spc][1]) for val in met[cat][:,:,iSpc]])
     met[cat] = torch.from_numpy(met[cat]).float()
 for cat in emis.keys():
-    for iSpc, spc in enumerate(emisnames_in):
+    for iSpc, spc in enumerate(emisnames):
         for i in range(emis[cat].shape[0]):
             emis[cat][i,iSpc] = F_normal(emis[cat][i,iSpc],dat_minmax["emis"][spc][0],dat_minmax["emis"][spc][1])
         #emis[cat][:,iSpc] = np.array([F_normal(val,dat_minmax["emis"][spc][0],dat_minmax["emis"][spc][1]) for val in emis[cat][:,iSpc]])
@@ -107,22 +107,21 @@ from LossFunctions import *
 
 print("\n  Start NN-Procedure.\n")
 
-nini_in = spcnames.size
-nemis_in = emisnames_in.size
-nspc_in = nini_in + nemis_in
-nspc_out = spcnames.size
-n_met = met_names.size
+nSpc   = spcnames.size
+nEmis  = emisnames.size
+nMet   = metnames.size
+nInput = nSpc + nEmis + nMet
 
 # CREATE MODEL (One STep Integrator)
 
 # DONT use one network for single and core of diurnal!
-model = Feedforward(nini_in+nemis_in+n_met,hidden_sizes,nspc_out)
-#model = ResNet(nini_in, n_met, nemis_in, hidden_sizes, n_encoded)
-#model = CHININ(D, E, n_met, nemis_in, hidden_sizes)
+model = Feedforward(nInput,hidden_sizes,nSpc)
+#model = ResNet(nSpc, nMet, nEmis, hidden_sizes, n_encoded)
+#model = CHININ(D, E, nMet, nEmis, hidden_sizes)
 
-core = Feedforward(nini_in+nemis_in+n_met,hidden_sizes,nspc_out)
-#core = ResNet(nini_in, n_met, nemis_in, hidden_sizes, n_encoded)
-#core = CHININ(D, E, n_met, nemis_in, hidden_sizes)
+core = Feedforward(nInput,hidden_sizes,nSpc)
+#core = ResNet(nSpc, nMet, nEmis, hidden_sizes, n_encoded)
+#core = CHININ(D, E, nMet, nEmis, hidden_sizes)
 model_diurnal = diurnal_model(core)
 
 # LOSS FCN
@@ -150,9 +149,9 @@ val_loss = np.zeros((6,nepoch+1))
 val_loss_diurnal = np.zeros((6,nepoch+1))
 val_loss_epoch = np.zeros((nvalfiles, nTimes-1, 2))
 vle_diurnal = np.zeros((nvalfiles, 2))
-val_pred = np.zeros((nvalfiles, nTimes, nspc_out))
+val_pred = np.zeros((nvalfiles, nTimes, nSpc))
 val_pred[:,0,:] = conc["val"][:,0,:]
-val_pred_diurnal = np.zeros((nvalfiles, nTimes, nspc_out))
+val_pred_diurnal = np.zeros((nvalfiles, nTimes, nSpc))
 val_pred_diurnal[:,0,:] = conc["val"][:,0,:]
 
 
@@ -229,21 +228,21 @@ time_estimated=0.0
 time_remaining=0.0
 
 
-#gs = GridSpec(nrows=6, ncols=nspc_out)
+#gs = GridSpec(nrows=6, ncols=nSpc)
 #for i in range(6):
-#    for j in range(nspc_out):
+#    for j in range(nSpc):
 #        plt.subplot(gs[i,j])
 #        plt.plot(conc["train"][130+i,:,j])
 #plt.show()
-#gs = GridSpec(nrows=6, ncols=nspc_out)
+#gs = GridSpec(nrows=6, ncols=nSpc)
 #for i in range(6):
-#    for j in range(nspc_out):
+#    for j in range(nSpc):
 #        plt.subplot(gs[i,j])
 #        plt.plot(conc["val"][10+i,:,j])
 #plt.show()
-#gs = GridSpec(nrows=3, ncols=nspc_out)
+#gs = GridSpec(nrows=3, ncols=nSpc)
 #for i in range(3):
-#    for j in range(nspc_out):
+#    for j in range(nSpc):
 #        plt.subplot(gs[i,j])
 #        plt.plot(conc["test"][i,:,j])
 #plt.show()
@@ -455,7 +454,7 @@ if train_diurnal:
                 vle_diurnal[iFile, :] = [ loss.item(), loss_imp.item() ]
                 
                 if epoch==nepoch:
-                    val_pred_diurnal[iFile, 1:, :] = pred.detach().numpy().reshape((nTimes-1, nspc_out))
+                    val_pred_diurnal[iFile, 1:, :] = pred.detach().numpy().reshape((nTimes-1, nSpc))
 
                 time_elapsed = time.perf_counter() - start_Timer
                 time_remaining = max(time_estimated - time_elapsed,0)
@@ -510,9 +509,9 @@ if train_diurnal:
 
 # predict!
 model.eval()
-test_hourly  = torch.zeros((ntestfiles, timepoints.size, nspc_out))
-test_full    = torch.zeros((ntestfiles, timepoints.size, nspc_out))
-test_diurnal = torch.zeros((ntestfiles, timepoints.size, nspc_out))
+test_hourly  = torch.zeros((ntestfiles, timepoints.size, nSpc))
+test_full    = torch.zeros((ntestfiles, timepoints.size, nSpc))
+test_diurnal = torch.zeros((ntestfiles, timepoints.size, nSpc))
 test_hourly[:,0,:] = conc["test"][:, 0, :]
 test_full[:,0,:] = conc["test"][:, 0, :]
 test_diurnal[:,0,:] = conc["test"][:, 0, :]
@@ -525,7 +524,7 @@ for iFile in range(ntestfiles):
             test_full[iFile, iStep+1, :]   = pred_f
     if train_diurnal:
         pred_diurnal = model_diurnal(conc["test"][iFile,0,:], met["test"][iFile,:,:], emis["test"][iFile,:])
-        test_diurnal[iFile, 1:, :] = pred_diurnal.reshape(24,nspc_out)
+        test_diurnal[iFile, 1:, :] = pred_diurnal.reshape(24,nSpc)
 
 test_hourly  = test_hourly.detach().numpy()
 test_full    = test_full.detach().numpy()
@@ -541,11 +540,11 @@ test_diurnal = test_diurnal.detach().numpy()
 rel_eps = 0.0005
 err_percs = np.array([1, .99, .95, .9, .8])
 err_colors = ["gainsboro","silver","darkgray","gray","dimgray"]
-val_err_dat=np.zeros((err_percs.size, timepoints.size-1, nspc_out))
+val_err_dat=np.zeros((err_percs.size, timepoints.size-1, nSpc))
 val_err_eps=np.amin(abs(val_pred-conc["val"].numpy()))*0.001
 
 for iStep in range(timepoints.size-1):
-    for iSpc in range(nspc_out):
+    for iSpc in range(nSpc):
         #max, 99%, 95%, 90%, 80%
         clean_a = val_pred[:,iStep,iSpc]
         clean_b = conc["val"][:,iStep,iSpc].numpy()
@@ -570,7 +569,7 @@ plt.suptitle('Statistics of validation/test data.\n Mean loss after training: '+
 ntestplot = 5
 gs = GridSpec(nrows=4+ntestplot, ncols=nspc_plot)
 ii=0
-for i in range(nspc_out):
+for i in range(nSpc):
     if spcnames[i] in spcnames_plot:
         for iFile in range(ntestplot):
             plt.subplot(gs[iFile,ii])
@@ -681,8 +680,8 @@ if train_diurnal:
 modelpath = 'Figures/Spam/OSTI_'+BSP+\
         '_files'+str(nFiles)+\
         "_conc"+str(spcnames_plot).replace("'","").replace(" ","-")+\
-        "_emis"+str(emisnames_in).replace("'","").replace(" ","-")+\
-        "_met"+str(met_names).replace("'","").replace(" ","-")+\
+        "_emis"+str(emisnames).replace("'","").replace(" ","-")+\
+        "_met"+str(metnames).replace("'","").replace(" ","-")+\
         '_epoch'+str(nepoch)+\
         '_hs'+str(hidden_sizes).replace(" ","")+\
         '_lr'+str(learning_rate)+\
