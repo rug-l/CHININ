@@ -109,9 +109,7 @@ nTimes = int(round( (t_final-t_0) / NN_dt ,0)) + 1                              
 
 timepoints = np.linspace(t_0,t_final,num=nTimes)                         # create time points array
 
-nepoch = 50                                                        # number of training epochs
-
-nsamples = 729                                                          # number of data samples to use (data has to exist!)
+nFiles = 729                                                          # number of data samples to use (data has to exist!)
 val_perc = 0.1                                                        
 test_perc = 0.01
 
@@ -122,6 +120,9 @@ test_perc = 0.01
 # # # # # # # # # # # # #   NN SPECS   # # # # # # # # # # # # #
 
 ##################################################################
+
+
+nepoch = 15                                                        # number of training epochs
 
 # specifiy sizes of hidden layers
 #hidden_sizes = [100 for i in range(nlayers)]
@@ -139,13 +140,12 @@ hidden_sizes = [ 40,300,300 ]
 outlier_perc = 0.1
 
 # Scaling: MinMax or log
-Scaling = 'MinMax'                                                      # data scaling (pre-processing)
+Scaling = 'log'                                                      # data scaling (pre-processing)
 
 
 ## LOG SCALER parameters
 if Scaling=='log':
     # single training parameters
-    #learning_rate_s  = 0.1
     learning_rate_s  = 0.0002
     momentum_s = 0.9
     learning_gamma_s = 0.25
