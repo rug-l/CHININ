@@ -76,9 +76,9 @@ for cat in emis.keys():
     emis[cat] = torch.from_numpy(emis[cat]).float()
 
 
-ntrainsamples = conc["train"].shape[0]
-nvalsamples = conc["val"].shape[0]
-ntestsamples = conc["test"].shape[0]
+ntrainfiles = conc["train"].shape[0]
+nvalfiles = conc["val"].shape[0]
+ntestfiles = conc["test"].shape[0]
 
 print("  Data Min/Max (","{:>6.2f}".format(cut_perc*100),"% outliers cut):\n")
 for i in dat_minmax.keys():
@@ -148,11 +148,11 @@ train_loss = np.zeros((nepoch+1))
 train_loss_diurnal = np.zeros((nepoch+1))
 val_loss = np.zeros((6,nepoch+1))
 val_loss_diurnal = np.zeros((6,nepoch+1))
-val_loss_epoch = np.zeros((nvalsamples, nTimes-1, 2))
-vle_diurnal = np.zeros((nvalsamples, 2))
-val_pred = np.zeros((nvalsamples, nTimes, nspc_out))
+val_loss_epoch = np.zeros((nvalfiles, nTimes-1, 2))
+vle_diurnal = np.zeros((nvalfiles, 2))
+val_pred = np.zeros((nvalfiles, nTimes, nspc_out))
 val_pred[:,0,:] = conc["val"][:,0,:]
-val_pred_diurnal = np.zeros((nvalsamples, nTimes, nspc_out))
+val_pred_diurnal = np.zeros((nvalfiles, nTimes, nspc_out))
 val_pred_diurnal[:,0,:] = conc["val"][:,0,:]
 
 
@@ -164,39 +164,39 @@ model.eval()
 
 # track train loss without affecting gradients
 with torch.no_grad():
-    for iSample in range(nvalsamples):
+    for iFile in range(nvalfiles):
         if train_single:
             #for iStep in range(nTimes-1):
             for iStep in range(nTimes-1):
-                pred = model(torch.cat((conc["val"][iSample,iStep,:], met["val"][iSample,iStep,:], emis["val"][iSample,:])))
-                loss = criterion(pred.squeeze(), conc["val"][iSample,iStep+1,:])
-                loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iSample,iStep+1,spcids_imp])
-                #print(iSample, iStep, sum(pred), loss)
-                val_loss_epoch[iSample, iStep, :] = [ loss.item(), loss_imp.item() ]
+                pred = model(torch.cat((conc["val"][iFile,iStep,:], met["val"][iFile,iStep,:], emis["val"][iFile,:])))
+                loss = criterion(pred.squeeze(), conc["val"][iFile,iStep+1,:])
+                loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iFile,iStep+1,spcids_imp])
+                #print(iFile, iStep, sum(pred), loss)
+                val_loss_epoch[iFile, iStep, :] = [ loss.item(), loss_imp.item() ]
         if train_diurnal:
-            pred = model_diurnal(conc["val"][iSample,0,:], met["val"][iSample,:,:], emis["val"][iSample,:])
-            loss = criterion(pred.squeeze(), conc["val"][iSample,1:,:].flatten())
+            pred = model_diurnal(conc["val"][iFile,0,:], met["val"][iFile,:,:], emis["val"][iFile,:])
+            loss = criterion(pred.squeeze(), conc["val"][iFile,1:,:].flatten())
             loss_imp = torch.tensor(0)
-            vle_diurnal[iSample, :] = [ loss.item(), loss_imp.item() ]
+            vle_diurnal[iFile, :] = [ loss.item(), loss_imp.item() ]
 
-    for iSample in range(ntrainsamples):
+    for iFile in range(ntrainfiles):
         if train_single:
             #for iStep in range(nTimes-1):
             for iStep in range(nTimes-1):
-                pred = model(torch.cat((conc["train"][iSample,iStep,:], met["train"][iSample,iStep,:], emis["train"][iSample,:])))
-                loss = criterion(pred.squeeze(), conc["train"][iSample,iStep+1,:])
-                train_loss[0] += loss.item()/((nTimes-1)*ntrainsamples)
-                #print(iSample, iStep, sum(pred), loss)
+                pred = model(torch.cat((conc["train"][iFile,iStep,:], met["train"][iFile,iStep,:], emis["train"][iFile,:])))
+                loss = criterion(pred.squeeze(), conc["train"][iFile,iStep+1,:])
+                train_loss[0] += loss.item()/((nTimes-1)*ntrainfiles)
+                #print(iFile, iStep, sum(pred), loss)
         if train_diurnal:
-            pred = model_diurnal(conc["train"][iSample,0,:], met["train"][iSample,:,:], emis["train"][iSample,:])
-            loss = criterion(pred.squeeze(), conc["train"][iSample,1:,:].flatten())
-            train_loss_diurnal[0] += loss.item()/((nTimes-1)*ntrainsamples)
+            pred = model_diurnal(conc["train"][iFile,0,:], met["train"][iFile,:,:], emis["train"][iFile,:])
+            loss = criterion(pred.squeeze(), conc["train"][iFile,1:,:].flatten())
+            train_loss_diurnal[0] += loss.item()/((nTimes-1)*ntrainfiles)
 
 vle_packed    = np.sort(val_loss_epoch[:,:,0].flatten())
 min_loss      = vle_packed[0]
 max_loss      = vle_packed[-1]
-minn_loss     = vle_packed[int(outlier_perc * nvalsamples)+1]
-maxn_loss     = vle_packed[int((1-outlier_perc) * nvalsamples)]
+minn_loss     = vle_packed[int(outlier_perc * nvalfiles)+1]
+maxn_loss     = vle_packed[int((1-outlier_perc) * nvalfiles)]
 mean_loss     = np.mean(vle_packed); mean_loss_single=mean_loss
 mean_loss_imp = np.mean(val_loss_epoch[:,:,1].flatten())
 val_loss[:,0] = [mean_loss, min_loss, max_loss, minn_loss, maxn_loss, mean_loss_imp]
@@ -205,8 +205,8 @@ print("  Mean loss before single training:  ", mean_loss)
 vle_packed    = np.sort(vle_diurnal[:,0].flatten())
 min_loss      = vle_packed[0]
 max_loss      = vle_packed[-1]
-minn_loss     = vle_packed[int(outlier_perc * nvalsamples)+1]
-maxn_loss     = vle_packed[int((1-outlier_perc) * nvalsamples)]
+minn_loss     = vle_packed[int(outlier_perc * nvalfiles)+1]
+maxn_loss     = vle_packed[int((1-outlier_perc) * nvalfiles)]
 mean_loss     = np.mean(vle_packed)
 mean_loss_imp = np.mean(vle_diurnal[:,1].flatten())
 val_loss_diurnal[:,0] = [mean_loss, min_loss, max_loss, minn_loss, maxn_loss, mean_loss_imp]
@@ -256,16 +256,16 @@ t_optim=0.0
 t_val=0.0
 if train_single:
 
-    print("  Training with "+str(ntrainsamples*(nTimes-1))+" data samples.")
+    print("  Training with "+str(ntrainfiles*(nTimes-1))+" data samples.")
     start_Timer = time.perf_counter()
     for epoch in range(1,nepoch+1):
         # set to training mode
         model.train()
         
         # train for every training sample
-        for iSample in range(ntrainsamples):
+        for iFile in range(ntrainfiles):
             # print progress update
-            perc = (100*(((epoch-1)/nepoch)+(iSample/(nsamples*nepoch))))
+            perc = (100*(((epoch-1)/nepoch)+(iFile/(nFiles*nepoch))))
             print('  Single Training. Epoch: ', epoch, 'of ', nepoch, '(', "%.2f" % perc, '%)',\
                     ' Mean loss: ',"{:.4e}".format(mean_loss),\
                     '  Time elapsed: ',convertTime(time_elapsed),\
@@ -279,15 +279,15 @@ if train_single:
                 optimizer.zero_grad() 
 
                 t0=time.perf_counter()
-                pred = model(torch.cat((conc["train"][iSample,iStep,:], met["train"][iSample,iStep,:], emis["train"][iSample,:])))
+                pred = model(torch.cat((conc["train"][iFile,iStep,:], met["train"][iFile,iStep,:], emis["train"][iFile,:])))
                 t_model+=time.perf_counter()-t0
 
                 t0=time.perf_counter()
-                loss = criterion(pred.squeeze(), conc["train"][iSample,iStep+1,:])
+                loss = criterion(pred.squeeze(), conc["train"][iFile,iStep+1,:])
                 loss.backward()      # compute gradients 
                 t_backward+=time.perf_counter()-t0
             
-                train_loss[epoch] += loss.item()/((nTimes-1)*ntrainsamples)
+                train_loss[epoch] += loss.item()/((nTimes-1)*ntrainfiles)
                 #model.float()       # something like more precision in calculations
             
                 t0=time.perf_counter()
@@ -295,8 +295,8 @@ if train_single:
                 t_optim+=time.perf_counter()-t0
             
                 # info prints
-                #print("DATA", torch.cat((conc["train"][iSample,iStep,:], met["train"][iSample,iStep,:], emis["train"][iSample,:])))
-                #print("TARGET", conc["train"][iSample,iStep+1,:])
+                #print("DATA", torch.cat((conc["train"][iFile,iStep,:], met["train"][iFile,iStep,:], emis["train"][iFile,:])))
+                #print("TARGET", conc["train"][iFile,iStep+1,:])
                 #print("PRED", pred.detach().numpy())
                 #for param in model.parameters():
                 #    print("PARAM ", param, "DATAPARAM ", param.data)
@@ -318,9 +318,9 @@ if train_single:
         t0=time.perf_counter()
         # track train loss without affecting gradients
         with torch.no_grad():
-            for iSample in range(nvalsamples):
+            for iFile in range(nvalfiles):
                 # print progress update
-                perc = (100*(((epoch-1)/nepoch)+((iSample+ntrainsamples)/(nsamples*nepoch))))
+                perc = (100*(((epoch-1)/nepoch)+((iFile+ntrainfiles)/(nFiles*nepoch))))
                 print('  Single Training. Epoch: ', epoch, 'of ', nepoch, '(', "%.2f" % perc, '%)',\
                         ' Mean loss: ',"{:.4e}".format(mean_loss),\
                         '  Time elapsed: ',convertTime(time_elapsed),\
@@ -328,13 +328,13 @@ if train_single:
                         ' Remaining: ', convertTime(time_remaining) ,'                   ', end='\r')
 
                 for iStep in range(nTimes-1):
-                    pred = model(torch.cat((conc["val"][iSample,iStep,:], met["val"][iSample,iStep,:], emis["val"][iSample,:])))
-                    loss = criterion(pred.squeeze(), conc["val"][iSample,iStep+1,:])
-                    loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iSample,iStep+1,spcids_imp])
-                    val_loss_epoch[iSample, iStep, :] = [ loss.item(), loss_imp.item() ]
+                    pred = model(torch.cat((conc["val"][iFile,iStep,:], met["val"][iFile,iStep,:], emis["val"][iFile,:])))
+                    loss = criterion(pred.squeeze(), conc["val"][iFile,iStep+1,:])
+                    loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iFile,iStep+1,spcids_imp])
+                    val_loss_epoch[iFile, iStep, :] = [ loss.item(), loss_imp.item() ]
                 
                     if epoch==nepoch:
-                        val_pred[iSample, iStep+1, :] = pred.detach().numpy()
+                        val_pred[iFile, iStep+1, :] = pred.detach().numpy()
 
                 time_elapsed = time.perf_counter() - start_Timer
                 time_remaining = max(time_estimated - time_elapsed,0)
@@ -344,8 +344,8 @@ if train_single:
         vle_packed = np.sort(val_loss_epoch[:,:,0].flatten())
         min_loss       = vle_packed[0]
         max_loss       = vle_packed[-1]
-        minn_loss      = vle_packed[int(outlier_perc * nvalsamples*(nTimes-1))+1]
-        maxn_loss      = vle_packed[int((1-outlier_perc) * nvalsamples*(nTimes-1))]
+        minn_loss      = vle_packed[int(outlier_perc * nvalfiles*(nTimes-1))+1]
+        maxn_loss      = vle_packed[int((1-outlier_perc) * nvalfiles*(nTimes-1))]
         mean_loss      = np.mean(vle_packed)
         mean_loss_imp  = np.mean(val_loss_epoch[:,:,1].flatten())
         val_loss[:,epoch] = [mean_loss, min_loss, max_loss, minn_loss, maxn_loss, mean_loss_imp]
@@ -391,16 +391,16 @@ t_optim=0.0
 t_val=0.0
 if train_diurnal:
 
-    print("  Training with ",str(ntrainsamples) , " samples.")
+    print("  Training with ",str(ntrainfiles) , " samples.")
     start_Timer = time.perf_counter()
     for epoch in range(1,nepoch+1):
         # set to training mode
         model_diurnal.train()
         
         # train for every training sample
-        for iSample in range(ntrainsamples):
+        for iFile in range(ntrainfiles):
             # print progress update
-            perc = (100*(((epoch-1)/nepoch)+(iSample/(nsamples*nepoch))))
+            perc = (100*(((epoch-1)/nepoch)+(iFile/(nFiles*nepoch))))
             print('  Diurnal Training. Epoch: ', epoch, 'of ', nepoch, '(', "%.2f" % perc, '%)',\
                     ' Mean loss: ',"{:.4e}".format(mean_loss),\
                     '  Time elapsed: ',convertTime(time_elapsed),\
@@ -411,15 +411,15 @@ if train_diurnal:
             optimizer_diurnal.zero_grad() 
 
             t0=time.perf_counter()
-            pred = model_diurnal(conc["train"][iSample,0,:], met["train"][iSample,:,:], emis["train"][iSample,:])
+            pred = model_diurnal(conc["train"][iFile,0,:], met["train"][iFile,:,:], emis["train"][iFile,:])
             t_model+=time.perf_counter()-t0
 
             t0=time.perf_counter()
-            loss = criterion(pred.squeeze(), conc["train"][iSample,1:,:].flatten())
+            loss = criterion(pred.squeeze(), conc["train"][iFile,1:,:].flatten())
             loss.backward()      # compute gradients 
             t_backward+=time.perf_counter()-t0
                 
-            train_loss_diurnal[epoch] += loss.item()/((nTimes-1)*ntrainsamples)
+            train_loss_diurnal[epoch] += loss.item()/((nTimes-1)*ntrainfiles)
             #model.float()       # something like more precision in calculations
             
             t0=time.perf_counter()
@@ -438,24 +438,24 @@ if train_diurnal:
         t0=time.perf_counter()
         # track train loss without affecting gradients
         with torch.no_grad():
-            for iSample in range(nvalsamples):
+            for iFile in range(nvalfiles):
                 # print progress update
-                perc = (100*(((epoch-1)/nepoch)+((iSample+ntrainsamples)/(nsamples*nepoch))))
+                perc = (100*(((epoch-1)/nepoch)+((iFile+ntrainfiles)/(nFiles*nepoch))))
                 print('  Diurnal Training. Epoch: ', epoch, 'of ', nepoch, '(', "%.2f" % perc, '%)',\
                         ' Mean loss: ',"{:.4e}".format(mean_loss),\
                         '  Time elapsed: ',convertTime(time_elapsed),\
                         ' Estimates: Total: ', convertTime(time_estimated),\
                         ' Remaining: ', convertTime(time_remaining) ,'                   ', end='\r')
 
-                pred = model_diurnal(conc["val"][iSample,0,:], met["val"][iSample,:,:], emis["val"][iSample,:])
-                loss = criterion(pred.squeeze(), conc["val"][iSample,1:,:].flatten())
+                pred = model_diurnal(conc["val"][iFile,0,:], met["val"][iFile,:,:], emis["val"][iFile,:])
+                loss = criterion(pred.squeeze(), conc["val"][iFile,1:,:].flatten())
                 loss_imp=torch.tensor(0)
                 # THE FOLLOWING IS WRONG, pred.squeeze()[spcids_imp] has to consider all steps in diurnal training
-                #loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iSample,1:,spcids_imp])
-                vle_diurnal[iSample, :] = [ loss.item(), loss_imp.item() ]
+                #loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iFile,1:,spcids_imp])
+                vle_diurnal[iFile, :] = [ loss.item(), loss_imp.item() ]
                 
                 if epoch==nepoch:
-                    val_pred_diurnal[iSample, 1:, :] = pred.detach().numpy().reshape((nTimes-1, nspc_out))
+                    val_pred_diurnal[iFile, 1:, :] = pred.detach().numpy().reshape((nTimes-1, nspc_out))
 
                 time_elapsed = time.perf_counter() - start_Timer
                 time_remaining = max(time_estimated - time_elapsed,0)
@@ -466,8 +466,8 @@ if train_diurnal:
         vle_packed = np.sort(vle_diurnal[:,0].flatten())
         min_loss       = vle_packed[0]
         max_loss       = vle_packed[-1]
-        minn_loss      = vle_packed[int(outlier_perc * nvalsamples)+1]
-        maxn_loss      = vle_packed[int((1-outlier_perc) * nvalsamples)]
+        minn_loss      = vle_packed[int(outlier_perc * nvalfiles)+1]
+        maxn_loss      = vle_packed[int((1-outlier_perc) * nvalfiles)]
         mean_loss      = np.mean(vle_packed)
         mean_loss_imp  = np.mean(vle_diurnal[:,1].flatten())
         val_loss_diurnal[:,epoch] = [mean_loss, min_loss, max_loss, minn_loss, maxn_loss, mean_loss_imp]
@@ -510,22 +510,22 @@ if train_diurnal:
 
 # predict!
 model.eval()
-test_hourly  = torch.zeros((ntestsamples, timepoints.size, nspc_out))
-test_full    = torch.zeros((ntestsamples, timepoints.size, nspc_out))
-test_diurnal = torch.zeros((ntestsamples, timepoints.size, nspc_out))
+test_hourly  = torch.zeros((ntestfiles, timepoints.size, nspc_out))
+test_full    = torch.zeros((ntestfiles, timepoints.size, nspc_out))
+test_diurnal = torch.zeros((ntestfiles, timepoints.size, nspc_out))
 test_hourly[:,0,:] = conc["test"][:, 0, :]
 test_full[:,0,:] = conc["test"][:, 0, :]
 test_diurnal[:,0,:] = conc["test"][:, 0, :]
-for iSample in range(ntestsamples):
+for iFile in range(ntestfiles):
     if train_single:
         for iStep in range(timepoints.size-1):
-            pred_h = model(torch.cat((conc["test"][iSample,iStep,:], met["test"][iSample,iStep,:], emis["test"][iSample,:])))
-            pred_f = model(torch.cat((test_full[iSample,iStep,:], met["test"][iSample,iStep,:], emis["test"][iSample,:])))
-            test_hourly[iSample, iStep+1, :] = pred_h
-            test_full[iSample, iStep+1, :]   = pred_f
+            pred_h = model(torch.cat((conc["test"][iFile,iStep,:], met["test"][iFile,iStep,:], emis["test"][iFile,:])))
+            pred_f = model(torch.cat((test_full[iFile,iStep,:], met["test"][iFile,iStep,:], emis["test"][iFile,:])))
+            test_hourly[iFile, iStep+1, :] = pred_h
+            test_full[iFile, iStep+1, :]   = pred_f
     if train_diurnal:
-        pred_diurnal = model_diurnal(conc["test"][iSample,0,:], met["test"][iSample,:,:], emis["test"][iSample,:])
-        test_diurnal[iSample, 1:, :] = pred_diurnal.reshape(24,nspc_out)
+        pred_diurnal = model_diurnal(conc["test"][iFile,0,:], met["test"][iFile,:,:], emis["test"][iFile,:])
+        test_diurnal[iFile, 1:, :] = pred_diurnal.reshape(24,nspc_out)
 
 test_hourly  = test_hourly.detach().numpy()
 test_full    = test_full.detach().numpy()
@@ -556,7 +556,7 @@ for iStep in range(timepoints.size-1):
         #err_dat=abs(clean_a-clean_b)/(clean_b+val_err_eps)
         err_dat=abs(clean_a-clean_b)
         err_dat = np.sort(err_dat)
-        val_err_dat[:,iStep,iSpc]=[ err_dat[int(err_percs[j]*nvalsamples)-1] for j in range(err_percs.size) ]
+        val_err_dat[:,iStep,iSpc]=[ err_dat[int(err_percs[j]*nvalfiles)-1] for j in range(err_percs.size) ]
 
 
 
@@ -572,20 +572,20 @@ gs = GridSpec(nrows=4+ntestplot, ncols=nspc_plot)
 ii=0
 for i in range(nspc_out):
     if spcnames[i] in spcnames_plot:
-        for iSample in range(ntestplot):
-            plt.subplot(gs[iSample,ii])
-            plt.plot(timepoints/3600, conc["test"][iSample,:,i], 'k', label='AtCSol')
+        for iFile in range(ntestplot):
+            plt.subplot(gs[iFile,ii])
+            plt.plot(timepoints/3600, conc["test"][iFile,:,i], 'k', label='AtCSol')
             if train_single:
-                plt.plot(timepoints/3600, test_hourly[iSample,:,i], 'b', label='NN hourly')
-                plt.plot(timepoints/3600, test_full[iSample,:,i], 'g', label='NN full')
+                plt.plot(timepoints/3600, test_hourly[iFile,:,i], 'b', label='NN hourly')
+                plt.plot(timepoints/3600, test_full[iFile,:,i], 'g', label='NN full')
             if train_diurnal:    
-                plt.plot(timepoints/3600, test_diurnal[iSample,:,i], 'c', label='NN diurnal')
+                plt.plot(timepoints/3600, test_diurnal[iFile,:,i], 'c', label='NN diurnal')
             plt.xticks([])
-            if iSample==0:
+            if iFile==0:
                 plt.title(spcnames[i])
-            if (ii==0 and iSample==0):
+            if (ii==0 and iFile==0):
                 plt.ylabel('exemplary trajectories (test)')
-            if (ii==spcnames_plot.size-1 and iSample==0):
+            if (ii==spcnames_plot.size-1 and iFile==0):
                 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         
         plt.subplot(gs[-4,ii])
@@ -679,7 +679,7 @@ if train_diurnal:
 
 
 modelpath = 'Figures/Spam/OSTI_'+BSP+\
-        '_sample'+str(nsamples)+\
+        '_files'+str(nFiles)+\
         "_conc"+str(spcnames_plot).replace("'","").replace(" ","-")+\
         "_emis"+str(emisnames_in).replace("'","").replace(" ","-")+\
         "_met"+str(met_names).replace("'","").replace(" ","-")+\
