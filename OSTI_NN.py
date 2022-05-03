@@ -126,14 +126,16 @@ core = Feedforward(nini_in+nemis_in+n_met,hidden_sizes,nspc_out)
 model_diurnal = diurnal_model(core)
 
 # LOSS FCN
-#criterion = torch.nn.MSELoss()
+criterion = torch.nn.MSELoss()
 #criterion = MSE_focus_o3
-criterion = partial(MSE_equalizer, dat_minmax=dat_minmax)
+#criterion = partial(MSE_equalizer, dat_minmax=dat_minmax)
 
 # OPTIMIZER
 #optimizer = torch.optim.SGD(model.parameters(), lr = learning_rate, momentum = momentum)
 optimizer = torch.optim.SGD(model.parameters(), lr = learning_rate_s)
 optimizer_diurnal = torch.optim.SGD(model_diurnal.parameters(), lr = learning_rate)
+#optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate_s)
+#optimizer_diurnal = torch.optim.Adam(model_diurnal.parameters(), lr = learning_rate)
 
 # SCHEDULER
 #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=learning_gamma)
