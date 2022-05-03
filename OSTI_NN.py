@@ -22,7 +22,7 @@ from RACM_ML_OSTI_config import *
 # #################################################### #
 
 # GET RAW DATA
-conc, met, emis = load_packed_data(BSP, nsamples, spcnames, emisnames_in, met_names, timepoints, val_perc, test_perc)
+conc, met, emis = get_data(BSP, nFiles, spcnames, met_names, emisnames_in, timepoints, val_perc, test_perc)
 
 
 if Scaling=='MinMax':
