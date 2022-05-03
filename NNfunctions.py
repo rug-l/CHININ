@@ -92,7 +92,7 @@ def fixTimesteps(y, t, t_desired):
     return y_data
 
 
-def DataFromNetCDF(BSP, iFile, spc_names, met_names, timepoints):
+def DataFromNetCDF(BSP, iFile, spcnames, metnames, timepoints):
     fn = "../../AtCSol/NetCDF/MLData/"+BSP+"/"+BSP+"_"+str(iFile)+".nc"
     ds=nc.Dataset(fn)
     
@@ -107,15 +107,15 @@ def DataFromNetCDF(BSP, iFile, spc_names, met_names, timepoints):
         print("Last available time in file "+fn+": "+str(times[-1])+". Requested: "+str(timepoints[-1])+" - Abort!")
         sys.exit()
 
-    conc_filedata = torch.zeros((timepoints.size, spc_names.size))
-    met_filedata  = torch.zeros((timepoints.size, met_names.size))
+    conc_filedata = torch.zeros((timepoints.size, spcnames.size))
+    met_filedata  = torch.zeros((timepoints.size, metnames.size))
     
     # read data
-    for iSpc, spc in enumerate(spc_names):
+    for iSpc, spc in enumerate(spcnames):
         data_raw = torch.tensor(ds[spc][:])
         conc_filedata[:,iSpc] = fixTimesteps(data_raw, times, timepoints)
 
-    for iMet, met in enumerate(met_names):
+    for iMet, met in enumerate(metnames):
         data_raw = torch.tensor(ds[met][:])
         met_filedata[:,iMet]  = fixTimesteps(data_raw, times, timepoints)
 
@@ -123,16 +123,16 @@ def DataFromNetCDF(BSP, iFile, spc_names, met_names, timepoints):
     return conc_filedata, met_filedata
 
 
-def read_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_perc, test_perc):
+def read_data(BSP, nFiles, spcnames, metnames, emisnames, timepoints, val_perc, test_perc):
     timer_arb = time.perf_counter()
 
     # number of files to use for training, validation, testing
     nvalfiles   = int(val_perc * nFiles)
     ntestfiles  = int(test_perc * nFiles)
     ntrainfiles = nFiles - nvalfiles - ntestfiles
-    nEmis = emis_names.size
-    nSpc  = spc_names.size
-    nMet  = met_names.size
+    nEmis = emisnames.size
+    nSpc  = spcnames.size
+    nMet  = metnames.size
 
     sample_files = np.random.permutation(nFiles)
     valFiles     = sample_files[:nvalfiles]
@@ -140,19 +140,19 @@ def read_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_per
     trainFiles   = sample_files[nvalfiles+ntestfiles:]
 
     conc = {}
-    conc["train"] = np.zeros((ntrainfiles, timepoints.size, spc_names.size))
-    conc["val"]   = np.zeros((nvalfiles,   timepoints.size, spc_names.size))
-    conc["test"]  = np.zeros((ntestfiles,  timepoints.size, spc_names.size))
+    conc["train"] = np.zeros((ntrainfiles, timepoints.size, spcnames.size))
+    conc["val"]   = np.zeros((nvalfiles,   timepoints.size, spcnames.size))
+    conc["test"]  = np.zeros((ntestfiles,  timepoints.size, spcnames.size))
     
     met = {}
-    met["train"]  = np.zeros((ntrainfiles, timepoints.size, met_names.size))
-    met["val"]    = np.zeros((nvalfiles,   timepoints.size, met_names.size))
-    met["test"]   = np.zeros((ntestfiles,  timepoints.size, met_names.size))
+    met["train"]  = np.zeros((ntrainfiles, timepoints.size, metnames.size))
+    met["val"]    = np.zeros((nvalfiles,   timepoints.size, metnames.size))
+    met["test"]   = np.zeros((ntestfiles,  timepoints.size, metnames.size))
 
     emis = {}
-    emis["train"] = np.zeros((ntrainfiles, emis_names.size))
-    emis["val"]   = np.zeros((nvalfiles,   emis_names.size))
-    emis["test"]  = np.zeros((ntestfiles,  emis_names.size))
+    emis["train"] = np.zeros((ntrainfiles, emisnames.size))
+    emis["val"]   = np.zeros((nvalfiles,   emisnames.size))
+    emis["test"]  = np.zeros((ntestfiles,  emisnames.size))
 
     meta_dict = np.load("../../AtCSol/NetCDF/MLData/"+BSP+"/"+BSP+"_meta.npy", allow_pickle=True)[()]
     
@@ -160,7 +160,7 @@ def read_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_per
     sections_order = np.array(list(meta_dict["SPC_dataranges"]["GAS"].keys()))
     emis_secID = np.where(sections_order == "EMISS")[0][0]
     emis_recorded = np.array(list(meta_dict["SPC_dataranges"]["GAS"]["EMISS"].keys()))
-    emisIDs = np.array([np.where(emis_recorded == i)[0][0] for i in emis_names])
+    emisIDs = np.array([np.where(emis_recorded == i)[0][0] for i in emisnames])
 
 
     categories = ["train", "val", "test"]
@@ -169,7 +169,7 @@ def read_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_per
         for iFile, file in enumerate(catFiles[iCat]):
             print('    Loading NetCDF-file ',iFile,' of '+str(nFiles)+'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
                   ' / est. ', convertTime(nFiles/(iFile+1) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
-            conc_filedata, met_filedata = DataFromNetCDF(BSP, file, spc_names, met_names, timepoints)
+            conc_filedata, met_filedata = DataFromNetCDF(BSP, file, spcnames, metnames, timepoints)
             if nEmis>0:
                 emis[cat][iFile,:] = meta_dict["ALL_tuples_noised"][file][emis_secID][emisIDs]
             conc[cat][iFile,:,:] = conc_filedata
@@ -178,14 +178,14 @@ def read_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_per
     return conc, met, emis
 
 
-def get_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_perc, test_perc):
+def get_data(BSP, nFiles, spcnames, metnames, emisnames, timepoints, val_perc, test_perc):
     
-    if len(str(spc_names).replace("'","").replace(" ","-"))>100:
+    if len(str(spcnames).replace("'","").replace(" ","-"))>100:
         path_dataset =  "StoredData/data_"+BSP+\
                     "_"+str(nFiles)+\
-                    "_spc["+str(spc_names.size)+"_spc]"+\
-                    "_met"+str(met_names).replace("'","").replace(" ","-")+\
-                    "_emis"+str(emis_names).replace("'","").replace(" ","-")+\
+                    "_spc["+str(spcnames.size)+"_spc]"+\
+                    "_met"+str(metnames).replace("'","").replace(" ","-")+\
+                    "_emis"+str(emisnames).replace("'","").replace(" ","-")+\
                     "_time"+"{:.2f}".format(timepoints[0])+"_"+"{:.2f}".format(timepoints[-1])+"_n"+str(timepoints.size)+\
                     "_val"+str(int(val_perc*100))+\
                     "_test"+str(int(test_perc*100))+\
@@ -193,9 +193,9 @@ def get_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_perc
     else:
         path_dataset =  "StoredData/data_"+BSP+\
                     "_"+str(nFiles)+\
-                    "_spc"+str(spc_names).replace("'","").replace(" ","-")+\
-                    "_met"+str(met_names).replace("'","").replace(" ","-")+\
-                    "_emis"+str(emis_names).replace("'","").replace(" ","-")+\
+                    "_spc"+str(spcnames).replace("'","").replace(" ","-")+\
+                    "_met"+str(metnames).replace("'","").replace(" ","-")+\
+                    "_emis"+str(emisnames).replace("'","").replace(" ","-")+\
                     "_time"+"{:.2f}".format(timepoints[0])+"_"+"{:.2f}".format(timepoints[-1])+"_n"+str(timepoints.size)+\
                     "_val"+str(int(val_perc*100))+\
                     "_test"+str(int(test_perc*100))+\
@@ -214,7 +214,7 @@ def get_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_perc
     # or read new set from netcdf and save
     else:
         print("  Creating data set from netcdf. "+path_dataset)
-        conc, met, emis = read_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_perc, test_perc)
+        conc, met, emis = read_data(BSP, nFiles, spcnames, metnames, emisnames, timepoints, val_perc, test_perc)
 
         np.save(path_dataset, np.array([conc, met, emis], dtype=object), allow_pickle=True)
 
