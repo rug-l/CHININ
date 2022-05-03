@@ -128,6 +128,10 @@ outlier_perc = 0.1
 
 # Scaling: MinMax or log
 Scaling = 'log'                                                      # data scaling (pre-processing)
+if Scaling=='log':
+    met_scaling=False
+else
+    met_scaling=True
 
 
 ## LOG SCALER parameters
