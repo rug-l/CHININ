@@ -91,96 +91,111 @@ def fixTimesteps(y, t, t_desired):
     
     return y_data
 
-def DataFromNetCDF(BSP, sample, ininames_in, spcnames_out, met_names, timepoints):
-    fn = "../../AtCSol/NetCDF/MLData/"+BSP+"/"+BSP+"_"+str(sample)+".nc"
+
+def DataFromNetCDF(BSP, iFile, spc_names, met_names, timepoints):
+    fn = "../../AtCSol/NetCDF/MLData/"+BSP+"/"+BSP+"_"+str(iFile)+".nc"
     ds=nc.Dataset(fn)
+    
     # read time steps (convert to seconds)
     times = ds['time'][:]*60*60
-    nTargetTimes = timepoints.size-1
+
+    # check for availability of timepoints
+    if timepoints[0]+1E-12<times[0]:
+        print("First available time in file "+fn+": "+str(times[0])+". Requested: "+str(timepoints[0])+" - Abort!")
+        sys.exit()
+    if timepoints[-1]-1E-12>times[-1]:
+        print("Last available time in file "+fn+": "+str(times[-1])+". Requested: "+str(timepoints[-1])+" - Abort!")
+        sys.exit()
+
+    conc_filedata = torch.zeros((timepoints.size, spc_names.size))
+    met_filedata  = torch.zeros((timepoints.size, met_names.size))
     
-    data = torch.zeros(ininames_in.size)
-    target = torch.zeros(nTargetTimes*spcnames_out.size)
-    met = torch.zeros((met_names.size,timepoints.size))
     # read data
-    for i, name in enumerate(ininames_in):
-        data_raw = torch.tensor(ds[name][:])
-        
-        #data[i] = fixTimesteps(data_raw, times, np.array([timepoints[0]]))
-        data[i] = fixTimesteps(data_raw, times, np.array([timepoints[0]]))
+    for iSpc, spc in enumerate(spc_names):
+        data_raw = torch.tensor(ds[spc][:])
+        conc_filedata[:,iSpc] = fixTimesteps(data_raw, times, timepoints)
 
-    for i, name in enumerate(spcnames_out):
-        data_raw = torch.tensor(ds[name][:])
-        
-        target[i*nTargetTimes:(i+1)*nTargetTimes] = fixTimesteps(data_raw, times, timepoints[1:])
+    for iMet, met in enumerate(met_names):
+        data_raw = torch.tensor(ds[met][:])
+        met_filedata[:,iMet]  = fixTimesteps(data_raw, times, timepoints)
 
-    for i, name in enumerate(met_names):
-        data_raw = torch.tensor(ds[name][:])
-        met[i,:] = fixTimesteps(data_raw, times, timepoints)
-
-    #print(data, max(abs(target)))
     ds.close()
-    return data, target, met
+    return conc_filedata, met_filedata
 
 
-def load_packed_data(BSP, nsamples, spc_names, emis_names, met_names, timepoints, val_perc, test_perc):
+def read_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_perc, test_perc):
+    timer_arb = time.perf_counter()
 
-    data_tr, target_tr, met_tr, data_val, target_val, met_val, data_te, target_te, met_te =\
-        load_data(BSP, nsamples, np.array([]), emis_names, spc_names, met_names, np.array([0.0, *timepoints]), val_perc, test_perc)
+    # number of files to use for training, validation, testing
+    nvalfiles   = int(val_perc * nFiles)
+    ntestfiles  = int(test_perc * nFiles)
+    ntrainfiles = nFiles - nvalfiles - ntestfiles
+    nEmis = emis_names.size
+    nSpc  = spc_names.size
+    nMet  = met_names.size
 
-    target = [target_tr, target_val, target_te]
-    met_pre = [met_tr, met_val, met_te]
+    sample_files = np.random.permutation(nFiles)
+    valFiles     = sample_files[:nvalfiles]
+    testFiles    = sample_files[nvalfiles:nvalfiles+ntestfiles]
+    trainFiles   = sample_files[nvalfiles+ntestfiles:]
 
     conc = {}
-    conc["train"] = np.zeros((target_tr.shape[0], timepoints.size, spc_names.size))
-    conc["val"]   = np.zeros((target_val.shape[0], timepoints.size, spc_names.size))
-    conc["test"]  = np.zeros((target_te.shape[0], timepoints.size, spc_names.size))
+    conc["train"] = np.zeros((ntrainfiles, timepoints.size, spc_names.size))
+    conc["val"]   = np.zeros((nvalfiles,   timepoints.size, spc_names.size))
+    conc["test"]  = np.zeros((ntestfiles,  timepoints.size, spc_names.size))
     
     met = {}
-    met["train"] = np.zeros((target_tr.shape[0], timepoints.size, met_names.size))
-    met["val"]   = np.zeros((target_val.shape[0], timepoints.size, met_names.size))
-    met["test"]  = np.zeros((target_te.shape[0], timepoints.size, met_names.size))
+    met["train"]  = np.zeros((ntrainfiles, timepoints.size, met_names.size))
+    met["val"]    = np.zeros((nvalfiles,   timepoints.size, met_names.size))
+    met["test"]   = np.zeros((ntestfiles,  timepoints.size, met_names.size))
 
     emis = {}
-    emis["train"] = data_tr
-    emis["val"]   = data_val
-    emis["test"]  = data_te
+    emis["train"] = np.zeros((ntrainfiles, emis_names.size))
+    emis["val"]   = np.zeros((nvalfiles,   emis_names.size))
+    emis["test"]  = np.zeros((ntestfiles,  emis_names.size))
+
+    meta_dict = np.load("../../AtCSol/NetCDF/MLData/"+BSP+"/"+BSP+"_meta.npy", allow_pickle=True)[()]
+    
+    # the following should be done with the ALL_specs entry of meta_dict
+    sections_order = np.array(list(meta_dict["SPC_dataranges"]["GAS"].keys()))
+    emis_secID = np.where(sections_order == "EMISS")[0][0]
+    emis_recorded = np.array(list(meta_dict["SPC_dataranges"]["GAS"]["EMISS"].keys()))
+    emisIDs = np.array([np.where(emis_recorded == i)[0][0] for i in emis_names])
 
 
-    nTimes = timepoints.size
-    nspc = spc_names.size
-    for iSc, scenario in enumerate(conc.keys()):
-        for iSample in range(conc[scenario].shape[0]):
-            for iT in range(nTimes):
-                conc[scenario][iSample, iT, :] = target[iSc][iSample, [iT+nTimes*i for i in range(nspc)]]
-
-    # TODO: avoid transposing, create it correctly
-    for iSc, scenario in enumerate(met.keys()):
-        for iSample in range(met[scenario].shape[0]):
-            met[scenario][iSample,:,:] = np.transpose(met_pre[iSc][iSample,:,1:])
+    categories = ["train", "val", "test"]
+    catFiles = [trainFiles, valFiles, testFiles]
+    for iCat, cat in enumerate(categories):
+        for iFile, file in enumerate(catFiles[iCat]):
+            print('    Loading NetCDF-file ',iFile,' of '+str(nFiles)+'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
+                  ' / est. ', convertTime(nFiles/(iFile+1) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
+            conc_filedata, met_filedata = DataFromNetCDF(BSP, file, spc_names, met_names, timepoints)
+            if nEmis>0:
+                emis[cat][iFile,:] = meta_dict["ALL_tuples_noised"][file][emis_secID][emisIDs]
+            conc[cat][iFile,:,:] = conc_filedata
+            met[cat][iFile,:,:]  = met_filedata
 
     return conc, met, emis
 
 
-def load_data(BSP, nsamples, ininames_in, emisnames_in, spcnames_out, met_names, timepoints, val_perc, test_perc):
+def get_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_perc, test_perc):
     
-    if len(str(spcnames_out).replace("'","").replace(" ","-"))>100:
+    if len(str(spc_names).replace("'","").replace(" ","-"))>100:
         path_dataset =  "StoredData/data_"+BSP+\
-                    "_"+str(nsamples)+\
-                    "_inINI"+str(ininames_in).replace("'","").replace(" ","-")+\
-                    "_inEMIS"+str(emisnames_in).replace("'","").replace(" ","-")+\
-                    "_out["+str(spcnames_out.size)+"_spc]"+\
+                    "_"+str(nFiles)+\
+                    "_spc["+str(spc_names.size)+"_spc]"+\
                     "_met"+str(met_names).replace("'","").replace(" ","-")+\
+                    "_emis"+str(emis_names).replace("'","").replace(" ","-")+\
                     "_time"+"{:.2f}".format(timepoints[0])+"_"+"{:.2f}".format(timepoints[-1])+"_n"+str(timepoints.size)+\
                     "_val"+str(int(val_perc*100))+\
                     "_test"+str(int(test_perc*100))+\
                     ".npy"
     else:
         path_dataset =  "StoredData/data_"+BSP+\
-                    "_"+str(nsamples)+\
-                    "_inINI"+str(ininames_in).replace("'","").replace(" ","-")+\
-                    "_inEMIS"+str(emisnames_in).replace("'","").replace(" ","-")+\
-                    "_out"+str(spcnames_out).replace("'","").replace(" ","-")+\
+                    "_"+str(nFiles)+\
+                    "_spc"+str(spc_names).replace("'","").replace(" ","-")+\
                     "_met"+str(met_names).replace("'","").replace(" ","-")+\
+                    "_emis"+str(emis_names).replace("'","").replace(" ","-")+\
                     "_time"+"{:.2f}".format(timepoints[0])+"_"+"{:.2f}".format(timepoints[-1])+"_n"+str(timepoints.size)+\
                     "_val"+str(int(val_perc*100))+\
                     "_test"+str(int(test_perc*100))+\
@@ -194,91 +209,21 @@ def load_data(BSP, nsamples, ininames_in, emisnames_in, spcnames_out, met_names,
     
         print("  Reading existing data set. "+path_dataset)
 
-        [data_tr, target_tr, met_tr, data_val, target_val, met_val, data_te, target_te, met_te] = np.load(path_dataset, allow_pickle=True)
+        [conc, met, emis] = np.load(path_dataset, allow_pickle=True)
     
     # or read new set from netcdf and save
     else:
         print("  Creating data set from netcdf. "+path_dataset)
-        data_tr, target_tr, met_tr, data_val, target_val, met_val, data_te, target_te, met_te = \
-                datasetNetCDF(BSP, nsamples, ininames_in, emisnames_in, spcnames_out, met_names, timepoints, val_perc, test_perc)
-        
-        np.save(path_dataset, np.array([data_tr, target_tr, met_tr, data_val, target_val, met_val, data_te, target_te, met_te], dtype=object), allow_pickle=True)
+        conc, met, emis = read_data(BSP, nFiles, spc_names, met_names, emis_names, timepoints, val_perc, test_perc)
+
+        np.save(path_dataset, np.array([conc, met, emis], dtype=object), allow_pickle=True)
+
 
     time_IO = time.perf_counter() - timer_arb
     print("  ... Done. Time reading data: ",convertTime(time_IO),5*'         ',"\n")
 
-    return data_tr, target_tr, met_tr, data_val, target_val, met_val, data_te, target_te, met_te
+    return conc, met, emis
 
-def datasetNetCDF(BSP, nsamples, ininames_in, emisnames_in, spcnames_out, met_names, timepoints, val_perc, test_perc):
-    timer_arb = time.perf_counter()
-
-    # number of samples to use for training, validation, testing
-    nvalsamples = int(val_perc * nsamples)
-    ntestsamples = int(test_perc * nsamples)
-    ntrainsamples = nsamples - nvalsamples - ntestsamples
-    nini_in = ininames_in.size
-    nemis_in = emisnames_in.size
-    nspc_in = nini_in + nemis_in
-    nspc_out = spcnames_out.size
-    nPosTimes = timepoints.size-1
-
-    samples = np.random.permutation(nsamples)
-    valsamples = samples[:nvalsamples]
-    testsamples = samples[nvalsamples:nvalsamples+ntestsamples]
-    trainsamples = samples[nvalsamples+ntestsamples:]
-
-    data_tr = np.empty((ntrainsamples,nspc_in))
-    target_tr = np.empty((ntrainsamples,nspc_out*nPosTimes))
-    met_tr = np.empty((ntrainsamples, met_names.size, timepoints.size))
-
-    data_val = np.empty((nvalsamples,nspc_in))
-    target_val = np.empty((nvalsamples,nspc_out*nPosTimes))
-    met_val = np.empty((nvalsamples, met_names.size, timepoints.size))
-
-    data_te = np.empty((ntestsamples,nspc_in))
-    target_te = np.empty((ntestsamples,nspc_out*nPosTimes))
-    met_te = np.empty((ntestsamples, met_names.size, timepoints.size))
-
-
-    meta_dict = np.load("../../AtCSol/NetCDF/MLData/"+BSP+"/"+BSP+"_meta.npy", allow_pickle=True)[()]
-    
-    # the following should be done with the ALL_specs entry of meta_dict
-    sections_order = np.array(list(meta_dict["SPC_dataranges"]["GAS"].keys()))
-    emis_secID = np.where(sections_order == "EMISS")[0][0]
-    emis_recorded = np.array(list(meta_dict["SPC_dataranges"]["GAS"]["EMISS"].keys()))
-    emisID_in = np.array([np.where(emis_recorded == i)[0][0] for i in emisnames_in])
-
-    for isample, sample in enumerate(trainsamples,0):
-        print('    Loading sample day ',isample,' of ',nsamples,'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
-                ' / est. ', convertTime(nsamples/(isample+1) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
-        data, target, met = DataFromNetCDF(BSP, sample, ininames_in, spcnames_out, met_names, timepoints)
-        data_tr[isample,:nini_in] = data
-        if nemis_in>0:
-            data_tr[isample,nini_in:] = meta_dict["ALL_tuples_noised"][sample][emis_secID][emisID_in]
-        target_tr[isample,:] = target
-        met_tr[isample,:,:] = met
-    
-    for isample, sample in enumerate(valsamples,0):
-        print('    Loading sample day',isample+ntrainsamples,' of ',nsamples,'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
-                ' / est. ', convertTime(nsamples/(isample+ntrainsamples) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
-        data, target, met = DataFromNetCDF(BSP, sample, ininames_in, spcnames_out, met_names, timepoints)
-        data_val[isample,:nini_in] = data
-        if nemis_in>0:
-            data_val[isample,nini_in:] = meta_dict["ALL_tuples_noised"][sample][emis_secID][emisID_in]
-        target_val[isample,:] = target
-        met_val[isample,:,:] = met
-    
-    for isample, sample in enumerate(testsamples,0):
-        print('    Loading sample day ',isample+ntrainsamples+nvalsamples,' of ',nsamples,'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
-                ' / est. ', convertTime(nsamples/(isample+ntrainsamples+nvalsamples) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
-        data, target, met = DataFromNetCDF(BSP, sample, ininames_in, spcnames_out, met_names, timepoints)
-        data_te[isample,:nini_in] = data
-        if nemis_in>0:
-            data_te[isample,nini_in:] = meta_dict["ALL_tuples_noised"][sample][emis_secID][emisID_in]
-        target_te[isample,:] = target
-        met_te[isample,:,:] = met
-    
-    return data_tr, target_tr, met_tr, data_val, target_val, met_val, data_te, target_te, met_te
 
 def firstgreaterentry(l, x):
     """AUX: return index of the first entry greater than x in l"""
