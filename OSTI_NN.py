@@ -61,14 +61,14 @@ for cat in conc.keys():
                 conc[cat][i,j,iSpc] = F_normal(conc[cat][i,j,iSpc],dat_minmax["conc"][spc][0],dat_minmax["conc"][spc][1])
         #conc[cat][:,:,iSpc] = np.array([F_normal(val,dat_minmax["conc"][spc][0],dat_minmax["conc"][spc][1]) for val in conc[cat][:,:,iSpc]])
     conc[cat] = torch.from_numpy(conc[cat]).float()
-if met_scaling:
-    for cat in met.keys():
+for cat in met.keys():
+    if met_scaling:
         for iSpc, spc in enumerate(metnames):
             for i in range(met[cat].shape[0]):
                 for j in range(met[cat].shape[1]):
                     met[cat][i,j,iSpc] = F_normal(met[cat][i,j,iSpc],dat_minmax["met"][spc][0],dat_minmax["met"][spc][1])
                     #met[cat][:,:,iSpc]  = np.array([F_normal(val,dat_minmax["met"][spc][0],dat_minmax["met"][spc][1]) for val in met[cat][:,:,iSpc]])
-        met[cat] = torch.from_numpy(met[cat]).float()
+    met[cat] = torch.from_numpy(met[cat]).float()
 for cat in emis.keys():
     for iSpc, spc in enumerate(emisnames):
         for i in range(emis[cat].shape[0]):
