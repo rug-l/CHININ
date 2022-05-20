@@ -130,7 +130,7 @@ outlier_perc = 0.1
 Scaling = 'log'                                                      # data scaling (pre-processing)
 if Scaling=='log':
     met_scaling=False
-else
+else:
     met_scaling=True
 
 
