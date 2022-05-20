@@ -6,6 +6,12 @@ from IMPORTS import *
 #                                                      #
 # #################################################### #
 
+def rsquared(x, y):
+    """ Return R^2 where x and y are array-like."""
+
+    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
+    return r_value**2
+
 def identity(x,dim=1):
     return x
 

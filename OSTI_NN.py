@@ -589,10 +589,11 @@ for i in range(nSpc):
                 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         
         plt.subplot(gs[-4,ii])
-        plt.scatter(conc["val"][:,:,i], val_pred[:,:,i], marker=',',c='#0066FF',s=7)
+        plt.scatter(conc["val"][:,:,i].flatten(), val_pred[:,:,i].flatten(), marker=',',c='#0066FF',s=7)
         plt.plot([conc["val"][:,:,i].min(),conc["val"][:,:,i].max()],[conc["val"][:,:,i].min(),conc["val"][:,:,i].max()], 'k')
+        plt.title('R^2='+"{:.4f}".format(rsquared(conc["val"][:,:,i].flatten(), val_pred[:,:,i].flatten())), fontsize=10)
         if ii==0:
-            plt.ylabel('predicted values')
+            plt.ylabel('predicted values\noverall R^2:'+"{:.5f}".format(rsquared(conc["val"][:,:,:].flatten(), val_pred[:,:,:].flatten())))
             plt.xlabel('target')
 
         plt.subplot(gs[-3,ii])
