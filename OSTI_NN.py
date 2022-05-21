@@ -81,16 +81,16 @@ ntrainfiles = conc["train"].shape[0]
 nvalfiles = conc["val"].shape[0]
 ntestfiles = conc["test"].shape[0]
 
-print("  Data Min/Max (","{:>6.2f}".format(cut_perc*100),"% outliers cut):\n")
-for i in dat_minmax.keys():
-    for j in dat_minmax[i].keys():
-        print("    ","{:>10}".format(i),"{:>10}".format(j), ": ", "{:>15.6e}".format(dat_minmax[i][j][0]), " to ", "{:>15.6e}".format(dat_minmax[i][j][1]), "   max/min = ", "{:>15.6e}".format(dat_minmax[i][j][1]/(1E-16+dat_minmax[i][j][0])))
-print("")
-print("  Data Min/Max (","{:>6.2f}".format(cut_perc*100),"% outliers cut):\n")
-for i in dat_minmax.keys():
-    for j in dat_minmax[i].keys():
-        print("    ","{:>10}".format(i),"{:>10}".format(j), ": ", "{:>6.2f}".format(np.log(1E-16+dat_minmax[i][j][0])), " to ", "{:>6.2f}".format(np.log(1E-16+dat_minmax[i][j][1])), "   max/min = ", "{:>6.2f}".format(dat_minmax[i][j][1]/(1E-16+dat_minmax[i][j][0])))
-print("")
+#print("  Data Min/Max (","{:>6.2f}".format(cut_perc*100),"% outliers cut):\n")
+#for i in dat_minmax.keys():
+#    for j in dat_minmax[i].keys():
+#        print("    ","{:>10}".format(i),"{:>10}".format(j), ": ", "{:>15.6e}".format(dat_minmax[i][j][0]), " to ", "{:>15.6e}".format(dat_minmax[i][j][1]), "   max/min = ", "{:>15.6e}".format(dat_minmax[i][j][1]/(1E-16+dat_minmax[i][j][0])))
+#print("")
+#print("  Data Min/Max (","{:>6.2f}".format(cut_perc*100),"% outliers cut):\n")
+#for i in dat_minmax.keys():
+#    for j in dat_minmax[i].keys():
+#        print("    ","{:>10}".format(i),"{:>10}".format(j), ": ", "{:>6.2f}".format(np.log(1E-16+dat_minmax[i][j][0])), " to ", "{:>6.2f}".format(np.log(1E-16+dat_minmax[i][j][1])), "   max/min = ", "{:>6.2f}".format(dat_minmax[i][j][1]/(1E-16+dat_minmax[i][j][0])))
+#print("")
 
 
 
