@@ -3,7 +3,7 @@ from NNfunctions import *
 
 BSP = "RACM_NN"
 # insert path with matrix files
-sys.path.insert(1, '../../AtCSol/NetCDF/MLData/'+BSP)
+sys.path.insert(1, 'MechanismMeta/'+BSP)
 
 ##################################################################
 
