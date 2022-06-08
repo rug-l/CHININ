@@ -5,6 +5,9 @@ BSP = "RACM_NN"
 # insert path with matrix files
 sys.path.insert(1, 'MechanismMeta/'+BSP)
 
+device1 = 'cuda:2'
+#device1 = cpu
+
 ##################################################################
 
 # # # # # # # # # #   IMPORT CHININ MATRICES   # # # # # # # # # #
