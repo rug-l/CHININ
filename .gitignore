@@ -4,6 +4,8 @@ StoredData/archive/**
 
 ToBeIgnored/**
 
+ML/**
+
 Figures/**
 
 __pycache__/**
@@ -13,3 +15,5 @@ __pycache__/**
 +
 
 .DS_Store
+
+MechanismMeta/RACM_NN/__pycache__/
