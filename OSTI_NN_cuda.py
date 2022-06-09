@@ -13,7 +13,7 @@ print("\n  OSTI-Network is initializing. Good learning!\n")
 #from SmallStratoML_OSTI_config import *
 from RACM_ML_OSTI_config import *
 
-
+torch.cuda.set_device(device1)
 
 # #################################################### #
 #                                                      #
@@ -43,13 +43,13 @@ dat_minmax["conc"]={}
 dat_minmax["met"]={}
 dat_minmax["emis"]={}
 for iSpc, spc in enumerate(spcnames):
-    val_sorted = np.sort(np.concatenate((conc_train[:,:,iSpc], conc_val[:,:,iSpc], conc_test[:,:,iSpc])).flatten())
+    val_sorted = np.sort(np.concatenate((conc["train"][:,:,iSpc], conc["val"][:,:,iSpc], conc["test"][:,:,iSpc])).flatten())
     dat_minmax["conc"][spc] = [val_sorted[int(cut_perc*val_sorted.size)], val_sorted[int((1-cut_perc)*val_sorted.size)]]
 for iSpc, spc in enumerate(metnames):
-    val_sorted = np.sort(np.concatenate((met_train[:,:,iSpc], met_val[:,:,iSpc], met_test[:,:,iSpc])).flatten())
+    val_sorted = np.sort(np.concatenate((met["train"][:,:,iSpc], met["val"][:,:,iSpc], met["test"][:,:,iSpc])).flatten())
     dat_minmax["met"][spc] = [val_sorted[int(cut_perc*val_sorted.size)], val_sorted[int((1-cut_perc)*val_sorted.size)]]
 for iSpc, spc in enumerate(emisnames):
-    val_sorted = np.sort(np.concatenate((emis_train[:,iSpc], emis_val[:,iSpc], emis_test[:,iSpc])).flatten())
+    val_sorted = np.sort(np.concatenate((emis["train"][:,iSpc], emis["val"][:,iSpc], emis["test"][:,iSpc])).flatten())
     dat_minmax["emis"][spc] = [val_sorted[int(cut_perc*val_sorted.size)], val_sorted[int((1-cut_perc)*val_sorted.size)]]
 
 
@@ -77,14 +77,25 @@ for cat in emis.keys():
     emis[cat] = torch.from_numpy(emis[cat]).float()
 
 
-conc_train = conc["train"]; conc_val = conc["val"]; conc_test = conc["test"];
-met_train = met["train"]; met_val = met["val"]; met_test = met["test"];
-emis_train = emis["train"]; emis_val = emis["val"]; emis_test = emis["test"];
 
-conc_train.to(device1); conc_val.to(device1); conc_test.to(device1);
-met_train.to(device1); met_val.to(device1); met_test.to(device1);
-emis_train.to(device1); emis_val.to(device1); emis_test.to(device1);
+conc_train = torch.empty_like(conc["train"], device=device1);conc_val = torch.empty_like(conc["val"], device=device1);conc_test  = torch.empty_like(conc["test"], device=device1);
+met_train = torch.empty_like(met["train"], device=device1);met_val = torch.empty_like(met["val"], device=device1);met_test  = torch.empty_like(met["test"], device=device1);
+emis_train = torch.empty_like(emis["train"], device=device1);emis_val = torch.empty_like(emis["val"], device=device1);emis_test  = torch.empty_like(emis["test"], device=device1);
 
+conc_train[:,:,:] = conc["train"][:,:,:]; conc_val[:,:,:] = conc["val"][:,:,:]; conc_test[:,:,:] = conc["test"][:,:,:];
+met_train[:,:,:] = met["train"][:,:,:]; met_val[:,:,:] = met["val"][:,:,:]; met_test[:,:,:] = met["test"][:,:,:];
+emis_train[:,:] = emis["train"][:,:]; emis_val[:,:] = emis["val"][:,:]; emis_test[:,:] = emis["test"][:,:];
+
+#conc_train.cuda(); conc_val.to(device1); conc_test.to(device1);
+#met_train.to(device1); met_val.to(device1); met_test.to(device1);
+#emis_train.to(device1); emis_val.to(device1); emis_test.to(device1);
+print("devices ", conc_train.device, met_val.device, emis_test.device)
+#print('cuda available: ',torch.cuda.is_available())
+#print('cuda version: ', torch.version.cuda)
+#print('number of devices: ', torch.cuda.device_count())
+#print(torch.cuda.get_device_properties("cuda:0"))
+#print(torch.cuda.get_device_name("cuda:0"))
+#print(conc_train.type())
 
 ntrainfiles = conc_train.shape[0]
 nvalfiles = conc_val.shape[0]
@@ -128,6 +139,7 @@ model = Feedforward(nInput,hidden_sizes,nSpc)
 #model = CHININ(D, E, nMet, nEmis, hidden_sizes)
 
 model.to(device1)
+print("model device ",next(model.parameters()).device)
 
 core = Feedforward(nInput,hidden_sizes,nSpc)
 #core = ResNet(nSpc, nMet, nEmis, hidden_sizes, n_encoded)
@@ -160,9 +172,9 @@ val_loss_diurnal = np.zeros((6,nepoch+1))
 val_loss_epoch = np.zeros((nvalfiles, nTimes-1, 2))
 vle_diurnal = np.zeros((nvalfiles, 2))
 val_pred = np.zeros((nvalfiles, nTimes, nSpc))
-val_pred[:,0,:] = conc_val[:,0,:]
+val_pred[:,0,:] = conc_val[:,0,:].cpu()
 val_pred_diurnal = np.zeros((nvalfiles, nTimes, nSpc))
-val_pred_diurnal[:,0,:] = conc_val[:,0,:]
+val_pred_diurnal[:,0,:] = conc_val[:,0,:].cpu()
 
 
 # predict!
@@ -343,7 +355,7 @@ if train_single:
                     val_loss_epoch[iFile, iStep, :] = [ loss.item(), loss_imp.item() ]
                 
                     if epoch==nepoch:
-                        val_pred[iFile, iStep+1, :] = pred.detach().numpy()
+                        val_pred[iFile, iStep+1, :] = pred.cpu().detach().numpy()
 
                 time_elapsed = time.perf_counter() - start_Timer
                 time_remaining = max(time_estimated - time_elapsed,0)
@@ -519,9 +531,9 @@ if train_diurnal:
 
 # predict!
 model.eval()
-test_hourly  = torch.zeros((ntestfiles, timepoints.size, nSpc))
-test_full    = torch.zeros((ntestfiles, timepoints.size, nSpc))
-test_diurnal = torch.zeros((ntestfiles, timepoints.size, nSpc))
+test_hourly  = torch.zeros((ntestfiles, timepoints.size, nSpc), device=device1)
+test_full    = torch.zeros((ntestfiles, timepoints.size, nSpc), device=device1)
+test_diurnal = torch.zeros((ntestfiles, timepoints.size, nSpc), device=device1)
 test_hourly[:,0,:] = conc_test[:, 0, :]
 test_full[:,0,:] = conc_test[:, 0, :]
 test_diurnal[:,0,:] = conc_test[:, 0, :]
@@ -536,9 +548,9 @@ for iFile in range(ntestfiles):
         pred_diurnal = model_diurnal(conc_test[iFile,0,:], met_test[iFile,:,:], emis_test[iFile,:])
         test_diurnal[iFile, 1:, :] = pred_diurnal.reshape(24,nSpc)
 
-test_hourly  = test_hourly.detach().numpy()
-test_full    = test_full.detach().numpy()
-test_diurnal = test_diurnal.detach().numpy()
+test_hourly  = test_hourly.cpu().detach().numpy()
+test_full    = test_full.cpu().detach().numpy()
+test_diurnal = test_diurnal.cpu().detach().numpy()
 
 # #################################################### #
 #                                                      #
@@ -551,13 +563,13 @@ rel_eps = 0.0005
 err_percs = np.array([1, .99, .95, .9, .8])
 err_colors = ["gainsboro","silver","darkgray","gray","dimgray"]
 val_err_dat=np.zeros((err_percs.size, timepoints.size-1, nSpc))
-val_err_eps=np.amin(abs(val_pred-conc_val.numpy()))*0.001
+val_err_eps=np.amin(abs(val_pred-conc_val.cpu().numpy()))*0.001
 
 for iStep in range(timepoints.size-1):
     for iSpc in range(nSpc):
         #max, 99%, 95%, 90%, 80%
         clean_a = val_pred[:,iStep,iSpc]
-        clean_b = conc_val[:,iStep,iSpc].numpy()
+        clean_b = conc_val[:,iStep,iSpc].cpu().numpy()
 
         clean_a[np.abs(clean_a) < rel_eps] = 0
         clean_b[np.abs(clean_b) < rel_eps] = 0
@@ -571,6 +583,7 @@ for iStep in range(timepoints.size-1):
 
 nspc_plot = spcnames_plot.size
 
+conc_train=conc_train.cpu(); conc_val=conc_val.cpu(); conc_test=conc_test.cpu();
 
 plot_logscale = False
 #plt.figure(figsize=(22,18), dpi=80)
