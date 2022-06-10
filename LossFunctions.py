@@ -9,7 +9,8 @@ def MSE_focus_o3(pred, target, focus_factor=20):
     return torch.mean(torch.square(pred_o3 - target_o3))
 
 # in work: importance-equalizing loss function
-# maybe /max is incomplete, maybe the range has to be adjusted instead of max only
+# important: /max is incomplete, the range has to be adjusted instead of max only
+# but this gets close to MinMax scaling
 def MSE_equalizer(pred, target, dat_minmax):
     names_loc = spcnames if pred.size()==95 else spcnames_imp
     pred_eq_imp   = pred
@@ -19,3 +20,7 @@ def MSE_equalizer(pred, target, dat_minmax):
         target_eq_imp[iSpc] *= 100/dat_minmax["conc"][spc][1]
     return torch.mean(torch.square(pred_eq_imp - target_eq_imp))
 
+# in work: relative loss function
+# considers relative error instead of absolute
+def MSE_equalizer2(pred, target):
+    return torch.mean(torch.abs(1-(torch.exp(pred)/torch.exp(target))))
