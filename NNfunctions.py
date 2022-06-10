@@ -22,14 +22,13 @@ def norm_arb(x):
 def minmax_scaler(x,datmin,datmax):
     factor=1
     if datmax-datmin<1E-16:
-        return x*0
+        return 0
     normedx = (x-datmin)/(datmax-datmin+datmin*1E-16)
     return normedx*factor
 
+# IMPORTANT: deletes values smaller than 5 (not important for molec/cm3)
 def log_scaler(x,datmin,datmax):
-    if datmax-datmin<1E-16:
-        return 0
-    normedx = np.log(np.maximum(x,np.ones_like(x)))
+    normedx = np.log(np.maximum(x,5*np.ones_like(x)))
     return normedx
 
 
