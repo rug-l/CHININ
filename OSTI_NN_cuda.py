@@ -13,7 +13,9 @@ print("\n  OSTI-Network is initializing. Good learning!\n")
 #from SmallStratoML_OSTI_config import *
 from RACM_ML_OSTI_config import *
 
-torch.cuda.set_device(device1)
+torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.fastest = True
+
 
 # #################################################### #
 #                                                      #
@@ -148,6 +150,7 @@ model_diurnal = diurnal_model(core)
 
 # LOSS FCN
 criterion = torch.nn.MSELoss()
+#criterion = MSE_equalizer2
 #criterion = MSE_focus_o3
 #criterion = partial(MSE_equalizer, dat_minmax=dat_minmax)
 
