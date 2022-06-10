@@ -13,8 +13,6 @@ print("\n  OSTI-Network is initializing. Good learning!\n")
 #from SmallStratoML_OSTI_config import *
 from RACM_ML_OSTI_config import *
 
-torch.cuda.set_device(device1)
-
 # #################################################### #
 #                                                      #
 #                   DATA PREPARING                     #
