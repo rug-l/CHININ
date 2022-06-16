@@ -5,8 +5,8 @@ BSP = "RACM_NN"
 # insert path with matrix files
 sys.path.insert(1, 'MechanismMeta/'+BSP)
 
-device1 = 'cuda:2'
-#device1 = cpu
+#device1 = torch.device('cuda:2')
+device1 = torch.device('cpu')
 
 ##################################################################
 
@@ -112,7 +112,7 @@ test_perc = 0.01
 ##################################################################
 
 
-nepoch = 15                                                        # number of training epochs
+nepoch = 50                                                        # number of training epochs
 
 # specifiy sizes of hidden layers
 #hidden_sizes = [100 for i in range(nlayers)]
@@ -130,7 +130,7 @@ hidden_sizes = [ 40,300,300 ]
 outlier_perc = 0.1
 
 # Scaling: MinMax or log
-Scaling = 'log'                                                      # data scaling (pre-processing)
+Scaling = 'MinMax'                                                      # data scaling (pre-processing)
 if Scaling=='log':
     met_scaling=False
 else:
@@ -141,10 +141,14 @@ else:
 if Scaling=='log':
     # single training parameters
     learning_rate_s  = 0.0002
-    momentum_s = 0.9
+    momentum_s = 0.0
     learning_gamma_s = 0.25
-    patience_s = 5
+    patience_s = 4
     threshold_s = 0.1
+    
+    # 2nd optimizer parameters
+    learning_rate_2  = 0.000002
+    momentum_2 = 0.0
 
     # diurnal training parameters
     learning_rate  = 0.1
@@ -156,13 +160,18 @@ if Scaling=='log':
 ## MINMAX SCALER parameters
 if Scaling=='MinMax':
     # single training parameters
-    #learning_rate_s  = 0.1
-    learning_rate_s  = 0.02
+    learning_rate_s  = 0.1
+    #learning_rate_s  = 0.02
+    #learning_rate_s  = 0.002
     momentum_s = 0.9
     learning_gamma_s = 0.25
     patience_s = 5
     threshold_s = 0.1
     
+    # 2nd optimizer parameters
+    learning_rate_2  = 0.000002
+    momentum_2 = 0.0
+
     # diurnal training parameters
     learning_rate  = 0.1
     momentum = 0.9
@@ -185,3 +194,5 @@ train_diurnal = False
 # Plotting on and off switch
 Plotting = True
 
+# epoch to switch losses at
+loss_switch = nepoch
