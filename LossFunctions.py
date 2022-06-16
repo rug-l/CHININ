@@ -22,5 +22,6 @@ def MSE_equalizer(pred, target, dat_minmax):
 
 # in work: relative loss function
 # considers relative error instead of absolute
+# IMPORTANT: this function needs fitting data! no errors catched (e.g. target<<0 can get problematic)
 def MSE_equalizer2(pred, target):
-    return torch.mean(torch.abs(1-(torch.exp(pred)/torch.exp(target))))
+    return torch.mean(torch.square(1-(torch.exp(pred)/torch.exp(target))))
