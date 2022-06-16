@@ -20,16 +20,28 @@ def norm_arb(x):
     return normedx
 
 def minmax_scaler(x,datmin,datmax):
-    factor=1
+    factor = 1
+    bias   = 0
     if datmax-datmin<1E-16:
         return 0
     normedx = (x-datmin)/(datmax-datmin+datmin*1E-16)
-    return normedx*factor
+    return normedx*factor+bias
+def minmax_descaler(x,datmin,datmax):
+    # inv_factor has to be the inverse of the factor in minmax_scaler!
+    inv_factor=1
+    # this bias has to be the same as in minmax_scaler!
+    bias = 0
+    if datmax-datmin<1E-16:
+        return 0
+    restoredx = datmin + (datmax-datmin)*inv_factor*(x-bias)
+    return restoredx
 
 # IMPORTANT: deletes values smaller than 5 (not important for molec/cm3)
 def log_scaler(x,datmin,datmax):
     normedx = np.log(np.maximum(x,5*np.ones_like(x)))
     return normedx
+def log_descaler(x,datmin,datmax):
+    return np.exp(x)
 
 
 def find_dat_minmax(ini_in, emis_in, spc_out, data_tr, target_tr, data_val, target_val, data_te, target_te, nPosTimes, cut_perc = 0.0):
