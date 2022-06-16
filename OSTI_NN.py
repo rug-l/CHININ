@@ -13,7 +13,8 @@ print("\n  OSTI-Network is initializing. Good learning!\n")
 #from SmallStratoML_OSTI_config import *
 from RACM_ML_OSTI_config import *
 
-
+torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.fastest = True
 
 # #################################################### #
 #                                                      #
@@ -27,9 +28,11 @@ conc, met, emis = get_data(BSP, nFiles, spcnames, metnames, emisnames, timepoint
 
 if Scaling=='MinMax':
     F_normal = minmax_scaler
+    F_denormal = minmax_descaler
     norm_cutperc = 1E-16
 elif Scaling=='log':
     F_normal = log_scaler
+    F_denormal = log_descaler
     norm_cutperc = 1E-16
 else:
     print("")
@@ -77,9 +80,18 @@ for cat in emis.keys():
     emis[cat] = torch.from_numpy(emis[cat]).float()
 
 
-ntrainfiles = conc["train"].shape[0]
-nvalfiles = conc["val"].shape[0]
-ntestfiles = conc["test"].shape[0]
+
+conc_train = torch.empty_like(conc["train"], device=device1);conc_val = torch.empty_like(conc["val"], device=device1);conc_test  = torch.empty_like(conc["test"], device=device1);
+met_train = torch.empty_like(met["train"], device=device1);met_val = torch.empty_like(met["val"], device=device1);met_test  = torch.empty_like(met["test"], device=device1);
+emis_train = torch.empty_like(emis["train"], device=device1);emis_val = torch.empty_like(emis["val"], device=device1);emis_test  = torch.empty_like(emis["test"], device=device1);
+
+conc_train[:,:,:] = conc["train"][:,:,:]; conc_val[:,:,:] = conc["val"][:,:,:]; conc_test[:,:,:] = conc["test"][:,:,:];
+met_train[:,:,:] = met["train"][:,:,:]; met_val[:,:,:] = met["val"][:,:,:]; met_test[:,:,:] = met["test"][:,:,:];
+emis_train[:,:] = emis["train"][:,:]; emis_val[:,:] = emis["val"][:,:]; emis_test[:,:] = emis["test"][:,:];
+
+ntrainfiles = conc_train.shape[0]
+nvalfiles = conc_val.shape[0]
+ntestfiles = conc_test.shape[0]
 
 #print("  Data Min/Max (","{:>6.2f}".format(cut_perc*100),"% outliers cut):\n")
 #for i in dat_minmax.keys():
@@ -93,8 +105,6 @@ ntestfiles = conc["test"].shape[0]
 #print("")
 
 
-
-
 # #################################################### #
 #                                                      #
 #                         NN                           #
@@ -106,41 +116,68 @@ from NeuralNetworks import *
 from LossFunctions import *
 
 
-print("\n  Start NN-Procedure.\n")
+print("  Start NN-Procedure.\n")
 
 nSpc   = spcnames.size
 nEmis  = emisnames.size
 nMet   = metnames.size
 nInput = nSpc + nEmis + nMet
 
-# CREATE MODEL (One STep Integrator)
+# CREATE MODEL (One STep Integrator) ############################################################
 
 # DONT use one network for single and core of diurnal!
 model = Feedforward(nInput,hidden_sizes,nSpc)
 #model = ResNet(nSpc, nMet, nEmis, hidden_sizes, n_encoded)
 #model = CHININ(D, E, nMet, nEmis, hidden_sizes)
 
+model.to(device1)
+
 core = Feedforward(nInput,hidden_sizes,nSpc)
 #core = ResNet(nSpc, nMet, nEmis, hidden_sizes, n_encoded)
 #core = CHININ(D, E, nMet, nEmis, hidden_sizes)
 model_diurnal = diurnal_model(core)
 
-# LOSS FCN
-criterion = torch.nn.MSELoss()
-#criterion = MSE_focus_o3
-#criterion = partial(MSE_equalizer, dat_minmax=dat_minmax)
+# LOSS FCN ############################################################
+criterion1 = torch.nn.MSELoss()
+#criterion1 = MSE_equalizer2
+#criterion1 = MSE_focus_o3
+#criterion1 = partial(MSE_equalizer, dat_minmax=dat_minmax)
 
-# OPTIMIZER
-#optimizer = torch.optim.SGD(model.parameters(), lr = learning_rate, momentum = momentum)
-optimizer = torch.optim.SGD(model.parameters(), lr = learning_rate_s)
+# 2nd LOSS FCN
+criterion2 = MSE_equalizer2
+
+# OPTIMIZER ############################################################
+optimizer1 = torch.optim.SGD(model.parameters(), lr = learning_rate_s, momentum = momentum_s)
 optimizer_diurnal = torch.optim.SGD(model_diurnal.parameters(), lr = learning_rate)
 #optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate_s)
 #optimizer_diurnal = torch.optim.Adam(model_diurnal.parameters(), lr = learning_rate)
 
-# SCHEDULER
+#2nd OPTIMIZER
+optimizer2 = torch.optim.SGD(model.parameters(), lr = learning_rate_2, momentum = momentum_2)
+#optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate_s)
+optim_switch = loss_switch
+
+# SCHEDULER ############################################################
 #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=learning_gamma)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=learning_gamma_s, patience=patience_s, threshold=threshold_s, verbose=1)
+scheduler1 = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer1, factor=learning_gamma_s, patience=patience_s, threshold=threshold_s, verbose=1)
 scheduler_diurnal = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_diurnal, factor=learning_gamma, patience=patience, threshold=threshold, verbose=1)
+
+#2nd SCHEDULER
+scheduler2 = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer2, factor=learning_gamma_s, patience=patience_s, threshold=threshold_s, verbose=1)
+
+criterion = criterion1
+if loss_switch<nepoch:
+    print("\n  NOTE: A second loss function will be used from epoch "+str(loss_switch)+" of "+str(nepoch)+"!\n")
+optimizer = optimizer1
+scheduler = scheduler1
+if optim_switch<nepoch:
+    print("\n  NOTE: A second optimizer will be used from epoch "+str(optim_switch)+" of "+str(nepoch)+"!\n")
+
+# #################################################### #
+#                                                      #
+#                   LOSS-TRACKING                      #
+#                                                      #
+# #################################################### #
 
 
 # create loss-tracking and final predictions variables
@@ -151,9 +188,9 @@ val_loss_diurnal = np.zeros((6,nepoch+1))
 val_loss_epoch = np.zeros((nvalfiles, nTimes-1, 2))
 vle_diurnal = np.zeros((nvalfiles, 2))
 val_pred = np.zeros((nvalfiles, nTimes, nSpc))
-val_pred[:,0,:] = conc["val"][:,0,:]
+val_pred[:,0,:] = conc_val[:,0,:].cpu()
 val_pred_diurnal = np.zeros((nvalfiles, nTimes, nSpc))
-val_pred_diurnal[:,0,:] = conc["val"][:,0,:]
+val_pred_diurnal[:,0,:] = conc_val[:,0,:].cpu()
 
 
 # predict!
@@ -168,14 +205,14 @@ with torch.no_grad():
         if train_single:
             #for iStep in range(nTimes-1):
             for iStep in range(nTimes-1):
-                pred = model(torch.cat((conc["val"][iFile,iStep,:], met["val"][iFile,iStep,:], emis["val"][iFile,:])))
-                loss = criterion(pred.squeeze(), conc["val"][iFile,iStep+1,:])
-                loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iFile,iStep+1,spcids_imp])
+                pred = model(torch.cat((conc_val[iFile,iStep,:], met_val[iFile,iStep,:], emis_val[iFile,:])))
+                loss = criterion(pred.squeeze(), conc_val[iFile,iStep+1,:])
+                loss_imp = criterion(pred.squeeze()[spcids_imp], conc_val[iFile,iStep+1,spcids_imp])
                 #print(iFile, iStep, sum(pred), loss)
                 val_loss_epoch[iFile, iStep, :] = [ loss.item(), loss_imp.item() ]
         if train_diurnal:
-            pred = model_diurnal(conc["val"][iFile,0,:], met["val"][iFile,:,:], emis["val"][iFile,:])
-            loss = criterion(pred.squeeze(), conc["val"][iFile,1:,:].flatten())
+            pred = model_diurnal(conc_val[iFile,0,:], met_val[iFile,:,:], emis_val[iFile,:])
+            loss = criterion(pred.squeeze(), conc_val[iFile,1:,:].flatten())
             loss_imp = torch.tensor(0)
             vle_diurnal[iFile, :] = [ loss.item(), loss_imp.item() ]
 
@@ -183,13 +220,13 @@ with torch.no_grad():
         if train_single:
             #for iStep in range(nTimes-1):
             for iStep in range(nTimes-1):
-                pred = model(torch.cat((conc["train"][iFile,iStep,:], met["train"][iFile,iStep,:], emis["train"][iFile,:])))
-                loss = criterion(pred.squeeze(), conc["train"][iFile,iStep+1,:])
+                pred = model(torch.cat((conc_train[iFile,iStep,:], met_train[iFile,iStep,:], emis_train[iFile,:])))
+                loss = criterion(pred.squeeze(), conc_train[iFile,iStep+1,:])
                 train_loss[0] += loss.item()/((nTimes-1)*ntrainfiles)
                 #print(iFile, iStep, sum(pred), loss)
         if train_diurnal:
-            pred = model_diurnal(conc["train"][iFile,0,:], met["train"][iFile,:,:], emis["train"][iFile,:])
-            loss = criterion(pred.squeeze(), conc["train"][iFile,1:,:].flatten())
+            pred = model_diurnal(conc_train[iFile,0,:], met_train[iFile,:,:], emis_train[iFile,:])
+            loss = criterion(pred.squeeze(), conc_train[iFile,1:,:].flatten())
             train_loss_diurnal[0] += loss.item()/((nTimes-1)*ntrainfiles)
 
 vle_packed    = np.sort(val_loss_epoch[:,:,0].flatten())
@@ -200,7 +237,7 @@ maxn_loss     = vle_packed[int((1-outlier_perc) * nvalfiles)]
 mean_loss     = np.mean(vle_packed); mean_loss_single=mean_loss
 mean_loss_imp = np.mean(val_loss_epoch[:,:,1].flatten())
 val_loss[:,0] = [mean_loss, min_loss, max_loss, minn_loss, maxn_loss, mean_loss_imp]
-print("  Mean loss before single training:  ", mean_loss)
+if train_single: print("  Mean loss before single training:  ", mean_loss)
 
 vle_packed    = np.sort(vle_diurnal[:,0].flatten())
 min_loss      = vle_packed[0]
@@ -210,10 +247,21 @@ maxn_loss     = vle_packed[int((1-outlier_perc) * nvalfiles)]
 mean_loss     = np.mean(vle_packed)
 mean_loss_imp = np.mean(vle_diurnal[:,1].flatten())
 val_loss_diurnal[:,0] = [mean_loss, min_loss, max_loss, minn_loss, maxn_loss, mean_loss_imp]
-print("  Mean loss before diurnal training: ", mean_loss,"\n")
+if train_diurnal: print("  Mean loss before diurnal training: ", mean_loss,"\n")
 mean_loss=mean_loss_single
 
-
+# check device compatibility
+same_device_data = conc_train.device==conc_val.device==conc_test.device==met_train.device==met_val.device==met_test.device==emis_train.device==emis_val.device==emis_test.device
+same_device = conc_train.device==next(model.parameters()).device
+print("")
+if same_device_data and same_device:
+    print("  Training and data are on device: "+str(conc_train.device)+".")
+elif same_device_data:
+    print("  Oops! The model and data are on different devices. Please fix this.")
+    sys.exit()
+else:
+    print("  Please take care of data and model being on one device.")
+print("")
 
 # #################################################### #
 #                                                      #
@@ -233,19 +281,19 @@ time_remaining=0.0
 #for i in range(6):
 #    for j in range(nSpc):
 #        plt.subplot(gs[i,j])
-#        plt.plot(conc["train"][130+i,:,j])
+#        plt.plot(conc_train[130+i,:,j])
 #plt.show()
 #gs = GridSpec(nrows=6, ncols=nSpc)
 #for i in range(6):
 #    for j in range(nSpc):
 #        plt.subplot(gs[i,j])
-#        plt.plot(conc["val"][10+i,:,j])
+#        plt.plot(conc_val[10+i,:,j])
 #plt.show()
 #gs = GridSpec(nrows=3, ncols=nSpc)
 #for i in range(3):
 #    for j in range(nSpc):
 #        plt.subplot(gs[i,j])
-#        plt.plot(conc["test"][i,:,j])
+#        plt.plot(conc_test[i,:,j])
 #plt.show()
 
 #with autograd.detect_anomaly():
@@ -259,6 +307,13 @@ if train_single:
     print("  Training with "+str(ntrainfiles*(nTimes-1))+" data samples.")
     start_Timer = time.perf_counter()
     for epoch in range(1,nepoch+1):
+        if epoch == loss_switch+1:
+            print("\n  Epoch "+str(epoch)+": Switched Loss Function.")
+            criterion = criterion2
+        if epoch == optim_switch+1:
+            print("\n  Epoch "+str(epoch)+": Switched Optimizer.")
+            optimizer = optimizer2
+            scheduler = scheduler2
         # set to training mode
         model.train()
         
@@ -279,11 +334,11 @@ if train_single:
                 optimizer.zero_grad() 
 
                 t0=time.perf_counter()
-                pred = model(torch.cat((conc["train"][iFile,iStep,:], met["train"][iFile,iStep,:], emis["train"][iFile,:])))
+                pred = model(torch.cat((conc_train[iFile,iStep,:], met_train[iFile,iStep,:], emis_train[iFile,:])))
                 t_model+=time.perf_counter()-t0
 
                 t0=time.perf_counter()
-                loss = criterion(pred.squeeze(), conc["train"][iFile,iStep+1,:])
+                loss = criterion(pred.squeeze(), conc_train[iFile,iStep+1,:])
                 loss.backward()      # compute gradients 
                 t_backward+=time.perf_counter()-t0
             
@@ -295,8 +350,8 @@ if train_single:
                 t_optim+=time.perf_counter()-t0
             
                 # info prints
-                #print("DATA", torch.cat((conc["train"][iFile,iStep,:], met["train"][iFile,iStep,:], emis["train"][iFile,:])))
-                #print("TARGET", conc["train"][iFile,iStep+1,:])
+                #print("DATA", torch.cat((conc_train[iFile,iStep,:], met_train[iFile,iStep,:], emis_train[iFile,:])))
+                #print("TARGET", conc_train[iFile,iStep+1,:])
                 #print("PRED", pred.detach().numpy())
                 #for param in model.parameters():
                 #    print("PARAM ", param, "DATAPARAM ", param.data)
@@ -328,19 +383,18 @@ if train_single:
                         ' Remaining: ', convertTime(time_remaining) ,'                   ', end='\r')
 
                 for iStep in range(nTimes-1):
-                    pred = model(torch.cat((conc["val"][iFile,iStep,:], met["val"][iFile,iStep,:], emis["val"][iFile,:])))
-                    loss = criterion(pred.squeeze(), conc["val"][iFile,iStep+1,:])
-                    loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iFile,iStep+1,spcids_imp])
+                    pred = model(torch.cat((conc_val[iFile,iStep,:], met_val[iFile,iStep,:], emis_val[iFile,:])))
+                    loss = criterion(pred.squeeze(), conc_val[iFile,iStep+1,:])
+                    loss_imp = criterion(pred.squeeze()[spcids_imp], conc_val[iFile,iStep+1,spcids_imp])
                     val_loss_epoch[iFile, iStep, :] = [ loss.item(), loss_imp.item() ]
                 
                     if epoch==nepoch:
-                        val_pred[iFile, iStep+1, :] = pred.detach().numpy()
+                        val_pred[iFile, iStep+1, :] = pred.cpu().detach().numpy()
 
                 time_elapsed = time.perf_counter() - start_Timer
                 time_remaining = max(time_estimated - time_elapsed,0)
         t_val+=time.perf_counter()-t0
 
-        #vle_packed = np.sort(np.sum(val_loss_epoch, axis=1))
         vle_packed = np.sort(val_loss_epoch[:,:,0].flatten())
         min_loss       = vle_packed[0]
         max_loss       = vle_packed[-1]
@@ -373,7 +427,6 @@ if train_single:
     print(f123("    Min loss (without "+str(int(outlier_perc*100))+"% outliers): "),f123n(val_loss[3,-1]))
     print(f123("    Min loss: "),f123n(val_loss[1,-1]))
     print("")
-    #print("  Mean loss improvements: ", ,"\n")
 
     print("  Timers:")
     print(f123("    Total: "), f124(convertTime(time_elapsed)),'(',fperc(100),'%)')
@@ -411,11 +464,11 @@ if train_diurnal:
             optimizer_diurnal.zero_grad() 
 
             t0=time.perf_counter()
-            pred = model_diurnal(conc["train"][iFile,0,:], met["train"][iFile,:,:], emis["train"][iFile,:])
+            pred = model_diurnal(conc_train[iFile,0,:], met_train[iFile,:,:], emis_train[iFile,:])
             t_model+=time.perf_counter()-t0
 
             t0=time.perf_counter()
-            loss = criterion(pred.squeeze(), conc["train"][iFile,1:,:].flatten())
+            loss = criterion(pred.squeeze(), conc_train[iFile,1:,:].flatten())
             loss.backward()      # compute gradients 
             t_backward+=time.perf_counter()-t0
                 
@@ -447,11 +500,11 @@ if train_diurnal:
                         ' Estimates: Total: ', convertTime(time_estimated),\
                         ' Remaining: ', convertTime(time_remaining) ,'                   ', end='\r')
 
-                pred = model_diurnal(conc["val"][iFile,0,:], met["val"][iFile,:,:], emis["val"][iFile,:])
-                loss = criterion(pred.squeeze(), conc["val"][iFile,1:,:].flatten())
+                pred = model_diurnal(conc_val[iFile,0,:], met_val[iFile,:,:], emis_val[iFile,:])
+                loss = criterion(pred.squeeze(), conc_val[iFile,1:,:].flatten())
                 loss_imp=torch.tensor(0)
                 # THE FOLLOWING IS WRONG, pred.squeeze()[spcids_imp] has to consider all steps in diurnal training
-                #loss_imp = criterion(pred.squeeze()[spcids_imp], conc["val"][iFile,1:,spcids_imp])
+                #loss_imp = criterion(pred.squeeze()[spcids_imp], conc_val[iFile,1:,spcids_imp])
                 vle_diurnal[iFile, :] = [ loss.item(), loss_imp.item() ]
                 
                 if epoch==nepoch:
@@ -510,26 +563,33 @@ if train_diurnal:
 
 # predict!
 model.eval()
-test_hourly  = torch.zeros((ntestfiles, timepoints.size, nSpc))
-test_full    = torch.zeros((ntestfiles, timepoints.size, nSpc))
-test_diurnal = torch.zeros((ntestfiles, timepoints.size, nSpc))
-test_hourly[:,0,:] = conc["test"][:, 0, :]
-test_full[:,0,:] = conc["test"][:, 0, :]
-test_diurnal[:,0,:] = conc["test"][:, 0, :]
+test_hourly  = torch.zeros((ntestfiles, timepoints.size, nSpc), device=device1)
+test_full    = torch.zeros((ntestfiles, timepoints.size, nSpc), device=device1)
+test_diurnal = torch.zeros((ntestfiles, timepoints.size, nSpc), device=device1)
+test_hourly[:,0,:] = conc_test[:, 0, :]
+test_full[:,0,:] = conc_test[:, 0, :]
+test_diurnal[:,0,:] = conc_test[:, 0, :]
 for iFile in range(ntestfiles):
     if train_single:
         for iStep in range(timepoints.size-1):
-            pred_h = model(torch.cat((conc["test"][iFile,iStep,:], met["test"][iFile,iStep,:], emis["test"][iFile,:])))
-            pred_f = model(torch.cat((test_full[iFile,iStep,:], met["test"][iFile,iStep,:], emis["test"][iFile,:])))
+            pred_h = model(torch.cat((conc_test[iFile,iStep,:], met_test[iFile,iStep,:], emis_test[iFile,:])))
+            pred_f = model(torch.cat((test_full[iFile,iStep,:], met_test[iFile,iStep,:], emis_test[iFile,:])))
             test_hourly[iFile, iStep+1, :] = pred_h
             test_full[iFile, iStep+1, :]   = pred_f
     if train_diurnal:
-        pred_diurnal = model_diurnal(conc["test"][iFile,0,:], met["test"][iFile,:,:], emis["test"][iFile,:])
+        pred_diurnal = model_diurnal(conc_test[iFile,0,:], met_test[iFile,:,:], emis_test[iFile,:])
         test_diurnal[iFile, 1:, :] = pred_diurnal.reshape(24,nSpc)
 
-test_hourly  = test_hourly.detach().numpy()
-test_full    = test_full.detach().numpy()
-test_diurnal = test_diurnal.detach().numpy()
+test_hourly  = test_hourly.cpu().detach().numpy()
+test_full    = test_full.cpu().detach().numpy()
+test_diurnal = test_diurnal.cpu().detach().numpy()
+
+# create de-scaled conc data for objective comparison (used for R^2-values)
+true_conc_val = copy.deepcopy(conc_val.cpu())
+true_val_pred = copy.deepcopy(val_pred)
+for (iSpc, spc) in enumerate(spcnames):
+    true_conc_val[:,:,iSpc] = F_denormal(true_conc_val[:,:,iSpc],dat_minmax["conc"][spc][0],dat_minmax["conc"][spc][1])
+    true_val_pred[:,:,iSpc] = F_denormal(true_val_pred[:,:,iSpc],dat_minmax["conc"][spc][0],dat_minmax["conc"][spc][1])
 
 # #################################################### #
 #                                                      #
@@ -537,31 +597,49 @@ test_diurnal = test_diurnal.detach().numpy()
 #                                                      #
 # #################################################### #
 
-# plot predicted errors for all species
-rel_eps = 0.0005
+# calculate predicted errors for all species
+rel_eps = 0.00001
+abs_eps = 1
 err_percs = np.array([1, .99, .95, .9, .8])
-err_colors = ["gainsboro","silver","darkgray","gray","dimgray"]
-val_err_dat=np.zeros((err_percs.size, timepoints.size-1, nSpc))
-val_err_eps=np.amin(abs(val_pred-conc["val"].numpy()))*0.001
+err_colors = ["gainsboro","silver","#0066FF","gray","dimgray"]
+val_err_dat_abs=np.zeros((err_percs.size, timepoints.size-1, nSpc))
+val_err_dat_rel=np.zeros((err_percs.size, timepoints.size-1, nSpc))
+#val_err_eps=np.amin(abs(true_val_pred-true_conc_val.cpu().numpy()))*0.001
+val_err_eps = abs(true_val_pred-true_conc_val.numpy())
+val_err_eps = val_err_eps[val_err_eps>0]
+val_err_eps = np.amin(val_err_eps)*0.001
+err_dat_rel = np.zeros(nvalfiles)
+
 
 for iStep in range(timepoints.size-1):
     for iSpc in range(nSpc):
         #max, 99%, 95%, 90%, 80%
-        clean_a = val_pred[:,iStep,iSpc]
-        clean_b = conc["val"][:,iStep,iSpc].numpy()
+        clean_a = true_val_pred[:,iStep,iSpc]
+        clean_b = true_conc_val[:,iStep,iSpc].numpy()
 
-        clean_a[np.abs(clean_a) < rel_eps] = 0
-        clean_b[np.abs(clean_b) < rel_eps] = 0
+        clean_a[np.abs(clean_a) < abs_eps] = 0
+        clean_b[np.abs(clean_b) < abs_eps] = 0
 
         #err_dat=abs(clean_a-clean_b)/(clean_b+val_err_eps)
-        err_dat=abs(clean_a-clean_b)
-        err_dat = np.sort(err_dat)
-        val_err_dat[:,iStep,iSpc]=[ err_dat[int(err_percs[j]*nvalfiles)-1] for j in range(err_percs.size) ]
+        err_dat_abs = abs(clean_a-clean_b)
+        for (i,err_val) in enumerate(err_dat_abs):
+            if clean_b[i]<50 and err_val<25:
+                err_dat_rel[i] = 0.0
+            elif clean_b[i]<50:
+                err_dat_rel[i] = -.05
+            else:
+                err_dat_rel[i] = 100 * err_val / (abs(clean_b[i])+val_err_eps)
+
+        err_dat_abs = np.sort(err_dat_abs)
+        err_dat_rel = np.sort(err_dat_rel)
+        val_err_dat_abs[:,iStep,iSpc]=[ err_dat_abs[int(err_percs[j]*nvalfiles)-1] for j in range(err_percs.size) ]
+        val_err_dat_rel[:,iStep,iSpc]=[ err_dat_rel[int(err_percs[j]*nvalfiles)-1] for j in range(err_percs.size) ]
 
 
 
 nspc_plot = spcnames_plot.size
 
+conc_train=conc_train.cpu(); conc_val=conc_val.cpu(); conc_test=conc_test.cpu();
 
 plot_logscale = False
 #plt.figure(figsize=(22,18), dpi=80)
@@ -574,7 +652,7 @@ for i in range(nSpc):
     if spcnames[i] in spcnames_plot:
         for iFile in range(ntestplot):
             plt.subplot(gs[iFile,ii])
-            plt.plot(timepoints/3600, conc["test"][iFile,:,i], 'k', label='AtCSol')
+            plt.plot(timepoints/3600, conc_test[iFile,:,i], 'k', label='AtCSol')
             if train_single:
                 plt.plot(timepoints/3600, test_hourly[iFile,:,i], 'b', label='NN hourly')
                 plt.plot(timepoints/3600, test_full[iFile,:,i], 'g', label='NN full')
@@ -589,22 +667,22 @@ for i in range(nSpc):
                 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         
         plt.subplot(gs[-4,ii])
-        plt.scatter(conc["val"][:,:,i].flatten(), val_pred[:,:,i].flatten(), marker=',',c='#0066FF',s=7)
-        plt.plot([conc["val"][:,:,i].min(),conc["val"][:,:,i].max()],[conc["val"][:,:,i].min(),conc["val"][:,:,i].max()], 'k')
-        plt.title('R^2='+"{:.4f}".format(rsquared(conc["val"][:,:,i].flatten(), val_pred[:,:,i].flatten())), fontsize=10)
+        plt.scatter(true_conc_val[:,:,i].flatten(), true_val_pred[:,:,i].flatten(), marker=',',c='#0066FF',s=7)
+        plt.plot([true_conc_val[:,:,i].min(),true_conc_val[:,:,i].max()],[true_conc_val[:,:,i].min(),true_conc_val[:,:,i].max()], 'k')
+        plt.title('R^2='+"{:.4f}".format(rsquared(true_conc_val[:,:,i].flatten(), true_val_pred[:,:,i].flatten())), fontsize=10)
         if ii==0:
-            plt.ylabel('predicted values\noverall R^2:'+"{:.5f}".format(rsquared(conc["val"][:,:,:].flatten(), val_pred[:,:,:].flatten())))
+            plt.ylabel('predicted values\noverall R^2:'+"{:.9f}".format(rsquared(true_conc_val[:,:,:].flatten(), true_val_pred[:,:,:].flatten())))
             plt.xlabel('target')
 
         plt.subplot(gs[-3,ii])
         for j in range(err_percs.size):
-            plt.fill_between(timepoints[1:]/3600, np.zeros(timepoints.size-1), val_err_dat[j,:,i],\
+            plt.fill_between(timepoints[1:]/3600, np.zeros(timepoints.size-1), val_err_dat_rel[j,:,i],\
                              facecolor=err_colors[j], label=str(err_percs[j]*100)+'% of errors')
         
         if plot_logscale:
             plt.xscale('log')
         if (ii==0):
-            plt.ylabel('abs. conc error (val)')
+            plt.ylabel('rel. conc err (val) [%]')
         if (ii==spcnames_plot.size-1):
             plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         ii+=1
