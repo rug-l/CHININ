@@ -5,8 +5,8 @@ BSP = "RACM_NN"
 # insert path with matrix files
 sys.path.insert(1, 'MechanismMeta/'+BSP)
 
-device1 = 'cuda:2'
-#device1 = cpu
+device1 = torch.device('cuda:1')
+#device1 = torch.device('cpu')
 
 ##################################################################
 
