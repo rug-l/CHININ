@@ -141,7 +141,6 @@ def DataFromNetCDF(BSP, iFile, spcnames, metnames, timepoints):
 
 
 def read_data(BSP, nFiles, spcnames, metnames, emisnames, timepoints, val_perc, test_perc):
-    timer_arb = time.perf_counter()
 
     # number of files to use for training, validation, testing
     nvalfiles   = int(val_perc * nFiles)
@@ -182,10 +181,12 @@ def read_data(BSP, nFiles, spcnames, metnames, emisnames, timepoints, val_perc, 
 
     categories = ["train", "val", "test"]
     catFiles = [trainFiles, valFiles, testFiles]
+    cat_nFiles = [ntrainfiles, nvalfiles, ntestfiles]
+    timer_arb = time.perf_counter()
     for iCat, cat in enumerate(categories):
         for iFile, file in enumerate(catFiles[iCat]):
-            print('    Loading NetCDF-file ',iFile,' of '+str(nFiles)+'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
-                  ' / est. ', convertTime(nFiles/(iFile+1) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
+            print('    Loading NetCDF-file ',iFile+sum(cat_nFiles[:iCat]),' of '+str(nFiles)+'. Time elapsed: ',convertTime(time.perf_counter()-timer_arb),\
+                  ' / est. ', convertTime(nFiles/(iFile+sum(cat_nFiles[:iCat])+1) * (time.perf_counter()-timer_arb)),5*'         ', end='\r')
             conc_filedata, met_filedata = DataFromNetCDF(BSP, file, spcnames, metnames, timepoints)
             if nEmis>0:
                 emis[cat][iFile,:] = meta_dict["ALL_tuples_noised"][file][emis_secID][emisIDs]
