@@ -447,6 +447,13 @@ if train_diurnal:
     print("  Training with ",str(ntrainfiles) , " samples.")
     start_Timer = time.perf_counter()
     for epoch in range(1,nepoch+1):
+        if epoch == loss_switch+1:
+            print("\n  Epoch "+str(epoch)+": Switched Loss Function.")
+            criterion = criterion2
+        if epoch == optim_switch+1:
+            print("\n  Epoch "+str(epoch)+": Switched Optimizer.")
+            optimizer = optimizer2
+            scheduler = scheduler2
         # set to training mode
         model_diurnal.train()
         
