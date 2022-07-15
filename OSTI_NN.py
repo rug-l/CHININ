@@ -652,7 +652,7 @@ plot_logscale = False
 #plt.figure(figsize=(22,18), dpi=80)
 plt.figure(figsize=(24,22), dpi=80)
 plt.suptitle('Statistics of validation/test data.\n Mean loss after training: '+str(mean_loss))
-ntestplot = 5
+ntestplot = min(5, ntestfiles)
 gs = GridSpec(nrows=4+ntestplot, ncols=nspc_plot)
 ii=0
 for i in range(nSpc):
