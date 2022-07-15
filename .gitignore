@@ -17,3 +17,5 @@ __pycache__/**
 .DS_Store
 
 MechanismMeta/RACM_NN/__pycache__/
+
+MechanismMeta/Small_NN/__pycache__/

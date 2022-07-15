@@ -11,7 +11,8 @@ print("\n  OSTI-Network is initializing. Good learning!\n")
 
 # load configuration from config file
 #from SmallStratoML_OSTI_config import *
-from RACM_ML_OSTI_config import *
+#from RACM_ML_OSTI_config import *
+from Small_ML_OSTI_config import *
 
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.fastest = True

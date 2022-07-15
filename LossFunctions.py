@@ -1,5 +1,6 @@
 from IMPORTS import *
-from RACM_ML_OSTI_config import spcnames, spcnames_imp, spcids
+#from RACM_ML_OSTI_config import spcnames, spcnames_imp, spcids
+from Small_ML_OSTI_config import spcnames, spcnames_imp, spcids
 
 # ozone-focused loss function
 o3 = spcids['O3']
